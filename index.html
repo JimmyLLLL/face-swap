@@ -415,14 +415,14 @@ async function doSwap() {
 
         // Build gradient mask: solid in center, fading to 0 at edges
         // Use radial gradient via repeated ellipse fills at decreasing opacity
-        const layers = 30;
+        const layers = 20;
         for (let i = layers; i >= 1; i--) {
-            const t = i / layers; // 1.0 at outer, decreasing to ~0.03 at center
+            const t = i / layers; // 1.0 at outer, decreasing to ~0.05 at center
             const rx = maskRx * t;
             const ry = maskRy * t;
             // Opacity: inner layers near 1.0, outer layers fade
-            const opacity = i === layers ? 0 : Math.pow(1 - t, 0.5);
-            mCtx.globalAlpha = Math.min(1, opacity + (i < 5 ? 1 : 0));
+            const opacity = i === layers ? 0.05 : Math.pow(1 - t, 0.6);
+            mCtx.globalAlpha = Math.min(1, opacity + (i <= 3 ? 1 : 0));
             mCtx.fillStyle = "#fff";
             mCtx.beginPath();
             mCtx.ellipse(maskCx, maskCy, rx, ry, 0, 0, Math.PI * 2);
@@ -432,12 +432,19 @@ async function doSwap() {
         // Final: ensure center is fully opaque
         mCtx.fillStyle = "#fff";
         mCtx.beginPath();
-        mCtx.ellipse(maskCx, maskCy, maskRx * 0.3, maskRy * 0.3, 0, 0, Math.PI * 2);
+        mCtx.ellipse(maskCx, maskCy, maskRx * 0.25, maskRy * 0.25, 0, 0, Math.PI * 2);
         mCtx.fill();
-        // Light blur to smooth between layers
-        mCtx.filter = "blur(3px)";
-        mCtx.globalCompositeOperation = "source-over";
-        mCtx.drawImage(maskCanvas, 0, 0);
+        // Apply feather blur for smooth transitions
+        const blurredMask = document.createElement("canvas");
+        blurredMask.width = targetCanvas.width;
+        blurredMask.height = targetCanvas.height;
+        const bCtx = blurredMask.getContext("2d");
+        bCtx.filter = "blur(" + feather + "px)";
+        bCtx.drawImage(maskCanvas, 0, 0);
+        // Copy back
+        mCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+        mCtx.filter = "none";
+        mCtx.drawImage(blurredMask, 0, 0);
 
         updateProgress(55);
 
