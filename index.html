@@ -180,6 +180,7 @@ let modelsLoaded = false;
 let sourceImg = null, targetImg = null;
 let sourceLandmarks = null, targetLandmarks = null;
 let sourceCanvas = null, targetCanvas = null;
+let detectorOptions = null;
 
 const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
 
@@ -187,6 +188,7 @@ async function loadModels() {
     try {
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.1 });
         modelsLoaded = true;
         const banner = document.getElementById("statusBanner");
         banner.innerHTML = "<strong class='check'>✅ AI models loaded!</strong> Ready to swap faces. Upload a source face and target image to begin.";
@@ -259,9 +261,16 @@ async function handleImage(file, isSource, area) {
             // Detect face
             if (modelsLoaded) {
                 try {
-                    const detection = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions())
-                        .withFaceLandmarks();
+                    const DETECT_MAX = 1280;
+                    const dScale = Math.min(1, DETECT_MAX / Math.max(img.width, img.height));
+                    const detectCanvas = document.createElement("canvas");
+                    detectCanvas.width = img.width * dScale;
+                    detectCanvas.height = img.height * dScale;
+                    detectCanvas.getContext("2d").drawImage(img, 0, 0, detectCanvas.width, detectCanvas.height);
+
+                    let detection = await faceapi.detectSingleFace(detectCanvas, detectorOptions).withFaceLandmarks();
                     if (detection) {
+                        detection = faceapi.resizeResults(detection, { width: canvas.width, height: canvas.height });
                         if (isSource) sourceLandmarks = detection;
                         else targetLandmarks = detection;
                         // Draw face box
