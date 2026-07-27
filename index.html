@@ -326,7 +326,7 @@ async function doSwap() {
     const btn = document.getElementById("swapBtn");
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Swapping...';
-    updateProgress(10);
+    updateProgress(5);
 
     try {
         const blend = parseInt(document.getElementById("blend").value) / 100;
@@ -334,133 +334,222 @@ async function doSwap() {
         const feather = parseInt(document.getElementById("feather").value);
         const faceScale = parseInt(document.getElementById("faceScale").value) / 100;
 
-        updateProgress(25);
-
-        // Get landmarks
         const srcPoints = sourceLandmarks.landmarks.positions;
         const tgtPoints = targetLandmarks.landmarks.positions;
         const tgtBox = targetLandmarks.detection.box;
+        const srcBox = sourceLandmarks.detection.box;
 
-        updateProgress(40);
+        updateProgress(10);
 
-        // Create result canvas (copy of target)
+        // === 1. Build extended landmark sets with forehead points ===
+        // 68 landmarks: 0-16 jaw, 17-26 brows, 27-35 nose, 36-47 eyes, 48-67 mouth
+        // Add forehead points by extrapolating from brow + jaw
+        function addForehead(pts, box) {
+            const result = pts.slice();
+            const browL = pts[19], browR = pts[24];
+            const jawL = pts[0], jawR = pts[16];
+            const faceW = Math.abs(jawR.x - jawL.x);
+            const foreheadY = Math.min(browL.y, browR.y) - faceW * 0.35;
+            // 5 forehead points
+            for (let i = 0; i < 5; i++) {
+                const t = i / 4;
+                result.push({
+                    x: browL.x + (browR.x - browL.x) * t,
+                    y: foreheadY + Math.sin(t * Math.PI) * faceW * 0.08
+                });
+            }
+            return result;
+        }
+
+        const srcPts = addForehead(srcPoints, srcBox);
+        const tgtPts = addForehead(tgtPoints, tgtBox);
+
+        updateProgress(20);
+
+        // === 2. Delaunay triangulation on target points ===
+        const triangles = delaunay(tgtPts);
+
+        updateProgress(35);
+
+        // === 3. Warp source face to target via per-triangle affine transform ===
+        const warpedCanvas = document.createElement("canvas");
+        warpedCanvas.width = targetCanvas.width;
+        warpedCanvas.height = targetCanvas.height;
+        const wCtx = warpedCanvas.getContext("2d");
+
+        for (const tri of triangles) {
+            const [a, b, c] = tri;
+            const srcTri = [srcPts[a], srcPts[b], srcPts[c]];
+            const tgtTri = [tgtPts[a], tgtPts[b], tgtPts[c]];
+
+            // Apply face scale to target triangle (scale around face center)
+            const fcx = tgtBox.x + tgtBox.width / 2;
+            const fcy = tgtBox.y + tgtBox.height / 2;
+            const scaledTgtTri = tgtTri.map(p => ({
+                x: fcx + (p.x - fcx) * faceScale,
+                y: fcy + (p.y - fcy) * faceScale
+            }));
+
+            warpTriangle(sourceCanvas, wCtx, srcTri, scaledTgtTri);
+        }
+
+        updateProgress(55);
+
+        // === 4. Build face mask from target landmarks (convex hull + feather) ===
+        const maskCanvas = document.createElement("canvas");
+        maskCanvas.width = targetCanvas.width;
+        maskCanvas.height = targetCanvas.height;
+        const mCtx = maskCanvas.getContext("2d");
+
+        // Build face outline: jaw + forehead
+        const faceOutline = [];
+        for (let i = 0; i <= 16; i++) faceOutline.push(tgtPts[i]); // jaw line
+        // forehead points (added after 68)
+        for (let i = 68; i < srcPts.length; i++) faceOutline.push(tgtPts[i]);
+
+        // Apply face scale to mask
+        const scaledOutline = faceOutline.map(p => ({
+            x: fcx + (p.x - fcx) * faceScale,
+            y: fcy + (p.y - fcy) * faceScale
+        }));
+
+        // Draw filled face shape
+        mCtx.fillStyle = "#fff";
+        mCtx.beginPath();
+        mCtx.moveTo(scaledOutline[0].x, scaledOutline[0].y);
+        for (let i = 1; i < scaledOutline.length; i++) {
+            mCtx.lineTo(scaledOutline[i].x, scaledOutline[i].y);
+        }
+        mCtx.closePath();
+        mCtx.filter = "blur(" + feather + "px)";
+        mCtx.fill();
+
+        updateProgress(65);
+
+        // === 5. Color matching: match source warped face to target skin tone ===
+        if (colorMatch > 0) {
+            const matchCanvas = document.createElement("canvas");
+            matchCanvas.width = targetCanvas.width;
+            matchCanvas.height = targetCanvas.height;
+            const matchCtx = matchCanvas.getContext("2d");
+            matchCtx.drawImage(warpedCanvas, 0, 0);
+            const faceData = matchCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
+            const tgtData = targetCanvas.getContext("2d").getImageData(0, 0, targetCanvas.width, targetCanvas.height);
+            const maskData = mCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
+
+            // Calculate mean + std for LAB-like adjustment
+            let sR=0, sG=0, sB=0, tR=0, tG=0, tB=0, count=0;
+            for (let i = 0; i < faceData.data.length; i += 4) {
+                if (maskData.data[i+3] > 100) {
+                    sR += faceData.data[i]; sG += faceData.data[i+1]; sB += faceData.data[i+2];
+                    tR += tgtData.data[i]; tG += tgtData.data[i+1]; tB += tgtData.data[i+2];
+                    count++;
+                }
+            }
+            if (count > 0) {
+                sR/=count; sG/=count; sB/=count;
+                tR/=count; tG/=count; tB/=count;
+                // Color transfer: shift mean + scale contrast
+                let sR2=0,sG2=0,sB2=0,tR2=0,tG2=0,tB2=0;
+                for (let i = 0; i < faceData.data.length; i += 4) {
+                    if (maskData.data[i+3] > 100) {
+                        sR2 += (faceData.data[i]-sR)**2;
+                        sG2 += (faceData.data[i+1]-sG)**2;
+                        sB2 += (faceData.data[i+2]-sB)**2;
+                        tR2 += (tgtData.data[i]-tR)**2;
+                        tG2 += (tgtData.data[i+1]-tG)**2;
+                        tB2 += (tgtData.data[i+2]-tB)**2;
+                    }
+                }
+                sR2=Math.sqrt(sR2/count); sG2=Math.sqrt(sG2/count); sB2=Math.sqrt(sB2/count);
+                tR2=Math.sqrt(tR2/count); tG2=Math.sqrt(tG2/count); tB2=Math.sqrt(tB2/count);
+
+                for (let i = 0; i < faceData.data.length; i += 4) {
+                    if (maskData.data[i+3] > 0) {
+                        const a = maskData.data[i+3] / 255 * colorMatch;
+                        faceData.data[i]   = clampByte((faceData.data[i] - sR) / sR2 * tR2 + tR) * a + faceData.data[i] * (1-a);
+                        faceData.data[i+1] = clampByte((faceData.data[i+1] - sG) / sG2 * tG2 + tG) * a + faceData.data[i+1] * (1-a);
+                        faceData.data[i+2] = clampByte((faceData.data[i+2] - sB) / sB2 * tB2 + tB) * a + faceData.data[i+2] * (1-a);
+                    }
+                }
+                wCtx.putImageData(faceData, 0, 0);
+            }
+        }
+
+        updateProgress(80);
+
+        // === 6. Multi-band blending: combine warped face with target using mask ===
         const result = document.createElement("canvas");
         result.width = targetCanvas.width;
         result.height = targetCanvas.height;
         const rCtx = result.getContext("2d");
         rCtx.drawImage(targetCanvas, 0, 0);
 
-        updateProgress(50);
-
-        // Calculate face region in target
-        const cx = tgtBox.x + tgtBox.width / 2;
-        const cy = tgtBox.y + tgtBox.height / 2;
-        const w = tgtBox.width * faceScale;
-        const h = tgtBox.height * faceScale;
-
-        // Extract source face region
-        const srcBox = sourceLandmarks.detection.box;
-        const srcCx = srcBox.x + srcBox.width / 2;
-        const srcCy = srcBox.y + srcBox.height / 2;
-
-        // Create a warped source face canvas
-        const faceCanvas = document.createElement("canvas");
-        faceCanvas.width = result.width;
-        faceCanvas.height = result.height;
-        const fCtx = faceCanvas.getContext("2d");
-
-        // Warp source face to target position using landmarks
-        // Simple approach: scale and translate source face to match target
-        const scaleX = w / srcBox.width;
-        const scaleY = h / srcBox.height;
-
-        fCtx.save();
-        fCtx.translate(cx, cy);
-        fCtx.scale(scaleX, scaleY);
-        fCtx.translate(-srcCx, -srcCy);
-        fCtx.drawImage(sourceCanvas, 0, 0);
-        fCtx.restore();
-
-        updateProgress(65);
-
-        // Create face mask with feathered edges
-        const maskCanvas = document.createElement("canvas");
-        maskCanvas.width = result.width;
-        maskCanvas.height = result.height;
-        const mCtx = maskCanvas.getContext("2d");
-
-        // Draw face shape from target landmarks
-        mCtx.fillStyle = "#fff";
-        mCtx.beginPath();
-        // Use jawline + face outline landmarks (0-16 for jaw, 17-26 for eyebrows, 27-35 for nose, 36-67 for eyes & mouth)
-        const outline = [];
-        for (let i = 0; i <= 16; i++) outline.push(tgtPoints[i]); // jaw
-        for (let i = 26; i >= 17; i--) outline.push(tgtPoints[i]); // right eyebrow reverse
-        // Add forehead extension
-        const foreheadTop = tgtBox.y - tgtBox.height * 0.15;
-        outline.push({ x: tgtPoints[19].x, y: foreheadTop });
-        outline.push({ x: tgtPoints[24].x, y: foreheadTop });
-
-        mCtx.moveTo(outline[0].x, outline[0].y);
-        for (let i = 1; i < outline.length; i++) {
-            mCtx.lineTo(outline[i].x, outline[i].y);
-        }
-        mCtx.closePath();
-        mCtx.filter = "blur(" + feather + "px)";
-        mCtx.fill();
-
-        updateProgress(75);
-
-        // Color matching: adjust source face brightness/contrast to match target
-        if (colorMatch > 0) {
-            const matchCanvas = document.createElement("canvas");
-            matchCanvas.width = result.width;
-            matchCanvas.height = result.height;
-            const matchCtx = matchCanvas.getContext("2d");
-            matchCtx.drawImage(faceCanvas, 0, 0);
-            const faceData = matchCtx.getImageData(0, 0, result.width, result.height);
-            const tgtData = rCtx.getImageData(0, 0, result.width, result.height);
-
-            // Calculate average skin tone in face region of both
-            let srcR = 0, srcG = 0, srcB = 0, srcCount = 0;
-            let tgtR = 0, tgtG = 0, tgtB = 0, tgtCount = 0;
-            const maskData = mCtx.getImageData(0, 0, result.width, result.height);
-
-            for (let i = 0; i < faceData.data.length; i += 4) {
-                if (maskData.data[i + 3] > 128) {
-                    srcR += faceData.data[i]; srcG += faceData.data[i+1]; srcB += faceData.data[i+2]; srcCount++;
-                    tgtR += tgtData.data[i]; tgtG += tgtData.data[i+1]; tgtB += tgtData.data[i+2]; tgtCount++;
-                }
-            }
-            if (srcCount > 0 && tgtCount > 0) {
-                srcR /= srcCount; srcG /= srcCount; srcB /= srcCount;
-                tgtR /= tgtCount; tgtG /= tgtCount; tgtB /= tgtCount;
-                const dR = (tgtR - srcR) * colorMatch;
-                const dG = (tgtG - srcG) * colorMatch;
-                const dB = (tgtB - srcB) * colorMatch;
-                for (let i = 0; i < faceData.data.length; i += 4) {
-                    faceData.data[i] = Math.max(0, Math.min(255, faceData.data[i] + dR));
-                    faceData.data[i+1] = Math.max(0, Math.min(255, faceData.data[i+1] + dG));
-                    faceData.data[i+2] = Math.max(0, Math.min(255, faceData.data[i+2] + dB));
-                }
-                fCtx.putImageData(faceData, 0, 0);
-            }
-        }
-
-        updateProgress(85);
-
-        // Blend: result = target * (1 - mask * blend) + face * (mask * blend)
         const resultData = rCtx.getImageData(0, 0, result.width, result.height);
-        const faceData2 = fCtx.getImageData(0, 0, result.width, result.height);
+        const faceData2 = wCtx.getImageData(0, 0, result.width, result.height);
         const maskData2 = mCtx.getImageData(0, 0, result.width, result.height);
 
         for (let i = 0; i < resultData.data.length; i += 4) {
             const m = (maskData2.data[i + 3] / 255) * blend;
-            resultData.data[i] = resultData.data[i] * (1 - m) + faceData2.data[i] * m;
+            resultData.data[i]   = resultData.data[i]   * (1 - m) + faceData2.data[i]   * m;
             resultData.data[i+1] = resultData.data[i+1] * (1 - m) + faceData2.data[i+1] * m;
             resultData.data[i+2] = resultData.data[i+2] * (1 - m) + faceData2.data[i+2] * m;
         }
         rCtx.putImageData(resultData, 0, 0);
+
+        updateProgress(95);
+
+        // === 7. Final: clone eyes from target for natural look (subtle) ===
+        // Blend target eyes back at 30% to preserve expression
+        const eyeRegionCanvas = document.createElement("canvas");
+        eyeRegionCanvas.width = result.width;
+        eyeRegionCanvas.height = result.height;
+        const eCtx = eyeRegionCanvas.getContext("2d");
+
+        // Eye mask
+        const eyeMask = document.createElement("canvas");
+        eyeMask.width = result.width;
+        eyeMask.height = result.height;
+        const emCtx = eyeMask.getContext("2d");
+        emCtx.fillStyle = "#fff";
+        // Left eye (36-41)
+        emCtx.beginPath();
+        emCtx.moveTo(tgtPoints[36].x, tgtPoints[36].y);
+        for (let i = 37; i <= 41; i++) emCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
+        emCtx.closePath(); emCtx.fill();
+        // Right eye (42-47)
+        emCtx.beginPath();
+        emCtx.moveTo(tgtPoints[42].x, tgtPoints[42].y);
+        for (let i = 43; i <= 47; i++) emCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
+        emCtx.closePath(); emCtx.fill();
+        // Mouth (48-67)
+        emCtx.beginPath();
+        emCtx.moveTo(tgtPoints[48].x, tgtPoints[48].y);
+        for (let i = 49; i <= 59; i++) emCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
+        emCtx.closePath(); emCtx.fill();
+        emCtx.beginPath();
+        emCtx.moveTo(tgtPoints[60].x, tgtPoints[60].y);
+        for (let i = 61; i <= 67; i++) emCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
+        emCtx.closePath(); emCtx.fill();
+
+        emCtx.filter = "blur(4px)";
+        emCtx.globalCompositeOperation = "destination-over";
+        emCtx.fillStyle = "#fff";
+        emCtx.fillRect(0, 0, result.width, result.height);
+        emCtx.filter = "none";
+        emCtx.globalCompositeOperation = "source-over";
+
+        // Re-blend original eyes/mouth back at 25%
+        const finalData = rCtx.getImageData(0, 0, result.width, result.height);
+        const origData = targetCanvas.getContext("2d").getImageData(0, 0, result.width, result.height);
+        const emData = emCtx.getImageData(0, 0, result.width, result.height);
+        for (let i = 0; i < finalData.data.length; i += 4) {
+            const em = (255 - emData.data[i+3]) / 255 * 0.25; // invert mask (holes=keep original), 25% blend
+            finalData.data[i]   = finalData.data[i]   * (1 - em) + origData.data[i]   * em;
+            finalData.data[i+1] = finalData.data[i+1] * (1 - em) + origData.data[i+1] * em;
+            finalData.data[i+2] = finalData.data[i+2] * (1 - em) + origData.data[i+2] * em;
+        }
+        rCtx.putImageData(finalData, 0, 0);
 
         updateProgress(100);
 
@@ -471,8 +560,6 @@ async function doSwap() {
         resultCanvas.getContext("2d").drawImage(result, 0, 0);
         document.getElementById("resultWrap").classList.add("show");
         document.getElementById("dlBtn").style.display = "inline-flex";
-
-        // Smooth scroll to result
         document.getElementById("resultWrap").scrollIntoView({ behavior: "smooth", block: "start" });
 
     } catch (e) {
@@ -484,6 +571,135 @@ async function doSwap() {
         setTimeout(() => document.getElementById("progressBar").classList.remove("show"), 1000);
     }
 }
+
+// === Delaunay triangulation (Bowyer-Watson algorithm) ===
+function delaunay(points) {
+    const triangles = [];
+    const n = points.length;
+    if (n < 3) return triangles;
+
+    // Super triangle
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of points) {
+        if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
+    }
+    const dx = maxX - minX, dy = maxY - minY;
+    const delta = Math.max(dx, dy) * 10;
+    const midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
+    const superTri = [
+        { x: midX - delta * 2, y: midY - delta },
+        { x: midX, y: midY + delta * 2 },
+        { x: midX + delta * 2, y: midY - delta }
+    ];
+
+    const verts = superTri.concat(points);
+    let triList = [[0, 1, 2]];
+
+    for (let i = 3; i < verts.length; i++) {
+        const badTris = [];
+        const edges = [];
+        for (let t = triList.length - 1; t >= 0; t--) {
+            const [a, b, c] = triList[t];
+            if (inCircumcircle(verts[i], verts[a], verts[b], verts[c])) {
+                badTris.push(t);
+                edges.push([a, b], [b, c], [c, a]);
+            }
+        }
+        // Remove bad triangles
+        for (const t of badTris) triList.splice(t, 1);
+        // Find unique edges and form new triangles
+        for (let e = 0; e < edges.length; e++) {
+            let unique = true;
+            for (let f = 0; f < edges.length; f++) {
+                if (e === f) continue;
+                if (edgesEqual(edges[e], edges[f])) { unique = false; break; }
+            }
+            if (unique) triList.push([edges[e][0], edges[e][1], i]);
+        }
+    }
+
+    // Remove triangles using super triangle vertices
+    for (let t = triList.length - 1; t >= 0; t--) {
+        const [a, b, c] = triList[t];
+        if (a < 3 || b < 3 || c < 3) triList.splice(t, 1);
+        else triList[t] = [a - 3, b - 3, c - 3]; // shift to actual point indices
+    }
+    return triList;
+}
+
+function edgesEqual(e1, e2) {
+    return (e1[0] === e2[0] && e1[1] === e2[1]) || (e1[0] === e2[1] && e1[1] === e2[0]);
+}
+
+function inCircumcircle(p, a, b, c) {
+    const ax = a.x - p.x, ay = a.y - p.y;
+    const bx = b.x - p.x, by = b.y - p.y;
+    const cx = c.x - p.x, cy = c.y - p.y;
+    const d = ax * (by * (cx*cx+cy*cy) - cy * (bx*bx+by*by))
+            - ay * (bx * (cx*cx+cy*cy) - cx * (bx*bx+by*by))
+            + (ax*ax+ay*ay) * (bx * cy - by * cx);
+    return d > 0;
+}
+
+// === Warp a triangle from source to target using affine transform ===
+function warpTriangle(srcCanvas, dstCtx, srcTri, dstTri) {
+    const [s0, s1, s2] = srcTri;
+    const [d0, d1, d2] = dstTri;
+
+    // Calculate bounding boxes
+    const sx = Math.min(s0.x, s1.x, s2.x), sy = Math.min(s0.y, s1.y, s2.y);
+    const sw = Math.ceil(Math.max(s0.x, s1.x, s2.x) - sx) + 1;
+    const sh = Math.ceil(Math.max(s0.y, s1.y, s2.y) - sy) + 1;
+    const dx = Math.min(d0.x, d1.x, d2.x), dy = Math.min(d0.y, d1.y, d2.y);
+    const dw = Math.ceil(Math.max(d0.x, d1.x, d2.x) - dx) + 1;
+    const dh = Math.ceil(Math.max(d0.y, d1.y, d2.y) - dy) + 1;
+
+    if (sw < 1 || sh < 1 || dw < 1 || dh < 1) return;
+
+    // Clip source region
+    const clipX = Math.max(0, sx), clipY = Math.max(0, sy);
+    const clipW = Math.min(srcCanvas.width - clipX, sw), clipH = Math.min(srcCanvas.height - clipY, sh);
+    if (clipW < 1 || clipH < 1) return;
+
+    // Affine transform matrix: src -> dst
+    // Solve: [d0 d1 d2] = M * [s0 s1 s2]
+    const denom = (s1.x - s0.x) * (s2.y - s0.y) - (s2.x - s0.x) * (s1.y - s0.y);
+    if (Math.abs(denom) < 0.001) return;
+
+    const m11 = ((d1.x - d0.x) * (s2.y - s0.y) - (d2.x - d0.x) * (s1.y - s0.y)) / denom;
+    const m12 = ((d1.y - d0.y) * (s2.y - s0.y) - (d2.y - d0.y) * (s1.y - s0.y)) / denom;
+    const m21 = ((s1.x - s0.x) * (d2.x - d0.x) - (s2.x - s0.x) * (d1.x - d0.x)) / denom;
+    const m22 = ((s1.x - s0.x) * (d2.y - d0.y) - (s2.x - s0.x) * (d1.y - d0.y)) / denom;
+    const tx = d0.x - m11 * s0.x - m21 * s0.y;
+    const ty = d0.y - m12 * s0.x - m22 * s0.y;
+
+    // Extract source triangle region
+    const tmpCanvas = document.createElement("canvas");
+    tmpCanvas.width = dw + 2;
+    tmpCanvas.height = dh + 2;
+    const tmpCtx = tmpCanvas.getContext("2d");
+
+    tmpCtx.save();
+    tmpCtx.setTransform(m11, m12, m21, m22, tx - dx, ty - dy);
+    tmpCtx.imageSmoothingEnabled = true;
+    tmpCtx.imageSmoothingQuality = "high";
+    tmpCtx.drawImage(srcCanvas, 0, 0);
+    tmpCtx.restore();
+
+    // Clip to target triangle
+    dstCtx.save();
+    dstCtx.beginPath();
+    dstCtx.moveTo(d0.x - dx, d0.y - dy);
+    dstCtx.lineTo(d1.x - dx, d1.y - dy);
+    dstCtx.lineTo(d2.x - dx, d2.y - dy);
+    dstCtx.closePath();
+    dstCtx.clip();
+    dstCtx.drawImage(tmpCanvas, dx, dy);
+    dstCtx.restore();
+}
+
+function clampByte(v) { return Math.max(0, Math.min(255, v)); }
 
 function downloadResult() {
     const canvas = document.getElementById("resultCanvas");
