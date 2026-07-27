@@ -401,46 +401,34 @@ async function doSwap() {
 
         updateProgress(55);
 
-        // === 4. Build face mask from target landmarks (expanded coverage) ===
+        // === 4. Build face mask: ellipse covering full face bbox ===
         const maskCanvas = document.createElement("canvas");
         maskCanvas.width = targetCanvas.width;
         maskCanvas.height = targetCanvas.height;
         const mCtx = maskCanvas.getContext("2d");
 
-        // Build expanded face outline: jaw + temples + forehead
-        // Use jaw 0-16, then go up the temples to forehead points
-        const faceOutline = [];
-        // Right jaw (0 to 16 = right to left)
-        for (let i = 0; i <= 16; i++) faceOutline.push(tgtPts[i]);
-        // Temple right (from jaw point 16 up to forehead)
-        faceOutline.push({ x: tgtPts[16].x + (tgtPts[26].x - tgtPts[16].x) * 0.3, y: tgtPts[16].y - Math.abs(tgtPts[16].y - tgtPts[26].y) * 0.5 });
-        // Forehead points (68-74, already added)
-        for (let i = 74; i >= 68; i--) faceOutline.push(tgtPts[i]);
-        // Temple left (from forehead down to jaw point 0)
-        faceOutline.push({ x: tgtPts[0].x + (tgtPts[17].x - tgtPts[0].x) * 0.3, y: tgtPts[0].y - Math.abs(tgtPts[0].y - tgtPts[17].y) * 0.5 });
+        // Use target face bbox as ellipse — covers entire face including forehead, cheeks, jaw
+        const maskCx = fcx;
+        const maskCy = fcy;
+        const maskRx = tgtBox.width * 0.52 * faceScale; // horizontal radius
+        const maskRy = tgtBox.height * 0.52 * faceScale; // vertical radius
 
-        // Apply face scale to mask
-        const scaledOutline = faceOutline.map(p => ({
-            x: fcx + (p.x - fcx) * faceScale,
-            y: fcy + (p.y - fcy) * faceScale
-        }));
-
-        // Draw filled face shape with smooth curve
         mCtx.fillStyle = "#fff";
         mCtx.beginPath();
-        mCtx.moveTo(scaledOutline[0].x, scaledOutline[0].y);
-        for (let i = 1; i < scaledOutline.length; i++) {
-            const next = scaledOutline[i];
-            const prev = scaledOutline[i - 1];
-            const midX = (prev.x + next.x) / 2;
-            const midY = (prev.y + next.y) / 2;
-            mCtx.quadraticCurveTo(prev.x, prev.y, midX, midY);
-        }
-        mCtx.closePath();
-        // Smaller feather for tighter blend
-        const maskFeather = Math.min(feather, 10);
-        mCtx.filter = "blur(" + maskFeather + "px)";
+        mCtx.ellipse(maskCx, maskCy, maskRx, maskRy, 0, 0, Math.PI * 2);
+        mCtx.filter = "blur(" + feather + "px)";
         mCtx.fill();
+
+        // Also draw a second smaller ellipse for stronger inner blend
+        const innerMask = document.createElement("canvas");
+        innerMask.width = targetCanvas.width;
+        innerMask.height = targetCanvas.height;
+        const iCtx = innerMask.getContext("2d");
+        iCtx.fillStyle = "#fff";
+        iCtx.beginPath();
+        iCtx.ellipse(maskCx, maskCy, maskRx * 0.85, maskRy * 0.85, 0, 0, Math.PI * 2);
+        iCtx.filter = "blur(" + (feather * 0.5) + "px)";
+        iCtx.fill();
 
         updateProgress(55);
 
@@ -458,13 +446,12 @@ async function doSwap() {
 
         updateProgress(65);
 
-        // === 5. Color matching: Reinhard-style per-channel mean+std transfer ===
+        // === 5. Color matching: Reinhard per-channel mean+std transfer ===
         if (colorMatch > 0) {
             const faceData = wCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
             const tgtData = targetCanvas.getContext("2d").getImageData(0, 0, targetCanvas.width, targetCanvas.height);
             const maskData = mCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
 
-            // Calculate per-channel mean + std for face region
             let sR=0,sG=0,sB=0, tR=0,tG=0,tB=0, count=0;
             for (let i = 0; i < faceData.data.length; i += 4) {
                 if (maskData.data[i+3] > 100) {
@@ -474,9 +461,7 @@ async function doSwap() {
                 }
             }
             if (count > 0) {
-                sR/=count; sG/=count; sB/=count;
-                tR/=count; tG/=count; tB/=count;
-                // Std dev
+                sR/=count; sG/=count; sB/=count; tR/=count; tG/=count; tB/=count;
                 let sR2=0,sG2=0,sB2=0, tR2=0,tG2=0,tB2=0;
                 for (let i = 0; i < faceData.data.length; i += 4) {
                     if (maskData.data[i+3] > 100) {
@@ -486,12 +471,10 @@ async function doSwap() {
                 }
                 const sRsd = Math.sqrt(sR2/count)+1, sGsd = Math.sqrt(sG2/count)+1, sBsd = Math.sqrt(sB2/count)+1;
                 const tRsd = Math.sqrt(tR2/count)+1, tGsd = Math.sqrt(tG2/count)+1, tBsd = Math.sqrt(tB2/count)+1;
-
                 for (let i = 0; i < faceData.data.length; i += 4) {
                     const maskAlpha = maskData.data[i+3];
                     if (maskAlpha > 0) {
                         const a = (maskAlpha / 255) * colorMatch;
-                        // Reinhard: (x - srcMean) / srcStd * tgtStd + tgtMean
                         const nr = clampByte((faceData.data[i]   - sR) / sRsd * tRsd + tR);
                         const ng = clampByte((faceData.data[i+1] - sG) / sGsd * tGsd + tG);
                         const nb = clampByte((faceData.data[i+2] - sB) / sBsd * tBsd + tB);
@@ -506,7 +489,7 @@ async function doSwap() {
 
         updateProgress(80);
 
-        // === 6. Multi-band blending: combine warped face with target using mask ===
+        // === 6. Two-layer blend: inner (strong) + outer (feathered) ===
         const result = document.createElement("canvas");
         result.width = targetCanvas.width;
         result.height = targetCanvas.height;
@@ -516,68 +499,19 @@ async function doSwap() {
         const resultData = rCtx.getImageData(0, 0, result.width, result.height);
         const faceData2 = wCtx.getImageData(0, 0, result.width, result.height);
         const maskData2 = mCtx.getImageData(0, 0, result.width, result.height);
+        const innerData = iCtx.getImageData(0, 0, result.width, result.height);
 
+        // Blend: inner mask uses full blend, outer mask uses blend * 0.5
         for (let i = 0; i < resultData.data.length; i += 4) {
-            const m = (maskData2.data[i + 3] / 255) * blend;
+            const outerM = maskData2.data[i + 3] / 255;
+            const innerM = innerData.data[i + 3] / 255;
+            // Combined: inner gets full blend, outer gets blend * 0.4
+            const m = Math.min(1, innerM * blend + outerM * blend * 0.4);
             resultData.data[i]   = resultData.data[i]   * (1 - m) + faceData2.data[i]   * m;
             resultData.data[i+1] = resultData.data[i+1] * (1 - m) + faceData2.data[i+1] * m;
             resultData.data[i+2] = resultData.data[i+2] * (1 - m) + faceData2.data[i+2] * m;
         }
         rCtx.putImageData(resultData, 0, 0);
-
-        updateProgress(90);
-
-        // === 7. Preserve target eyes & mouth (blend back 20% for natural expression) ===
-        const featureMask = document.createElement("canvas");
-        featureMask.width = result.width;
-        featureMask.height = result.height;
-        const fmCtx = featureMask.getContext("2d");
-        fmCtx.fillStyle = "#fff";
-
-        // Left eye (36-41)
-        fmCtx.beginPath();
-        fmCtx.moveTo(tgtPoints[36].x, tgtPoints[36].y);
-        for (let i = 37; i <= 41; i++) fmCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
-        fmCtx.closePath(); fmCtx.fill();
-        // Right eye (42-47)
-        fmCtx.beginPath();
-        fmCtx.moveTo(tgtPoints[42].x, tgtPoints[42].y);
-        for (let i = 43; i <= 47; i++) fmCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
-        fmCtx.closePath(); fmCtx.fill();
-        // Outer mouth (48-59)
-        fmCtx.beginPath();
-        fmCtx.moveTo(tgtPoints[48].x, tgtPoints[48].y);
-        for (let i = 49; i <= 59; i++) fmCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
-        fmCtx.closePath(); fmCtx.fill();
-        // Inner mouth (60-67)
-        fmCtx.beginPath();
-        fmCtx.moveTo(tgtPoints[60].x, tgtPoints[60].y);
-        for (let i = 61; i <= 67; i++) fmCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
-        fmCtx.closePath(); fmCtx.fill();
-        // Eyebrows (17-26) - subtle blend
-        fmCtx.beginPath();
-        fmCtx.moveTo(tgtPoints[17].x, tgtPoints[17].y);
-        for (let i = 18; i <= 26; i++) fmCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
-        fmCtx.closePath(); fmCtx.fill();
-
-        // Feather the feature mask
-        fmCtx.filter = "blur(6px)";
-        fmCtx.globalCompositeOperation = "source-in";
-        fmCtx.fillStyle = "#fff";
-        fmCtx.fillRect(0, 0, result.width, result.height);
-
-        // Blend target features back at 20%
-        const fmData = fmCtx.getImageData(0, 0, result.width, result.height);
-        const finalData = rCtx.getImageData(0, 0, result.width, result.height);
-        const origData = targetCanvas.getContext("2d").getImageData(0, 0, result.width, result.height);
-        const featureBlend = 0.2; // 20% original features
-        for (let i = 0; i < finalData.data.length; i += 4) {
-            const fm = fmData.data[i+3] / 255 * featureBlend;
-            finalData.data[i]   = finalData.data[i]   * (1 - fm) + origData.data[i]   * fm;
-            finalData.data[i+1] = finalData.data[i+1] * (1 - fm) + origData.data[i+1] * fm;
-            finalData.data[i+2] = finalData.data[i+2] * (1 - fm) + origData.data[i+2] * fm;
-        }
-        rCtx.putImageData(finalData, 0, 0);
 
         updateProgress(100);
 
