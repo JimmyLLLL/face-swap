@@ -87,18 +87,18 @@
     <div class="controls" id="controls">
         <div class="control-row">
             <div class="control-group">
-                <div class="control-label"><label>Blend Amount</label><span class="val" id="blendVal">80%</span></div>
-                <input type="range" id="blend" min="20" max="100" value="80" step="5">
+                <div class="control-label"><label>Blend Amount</label>                <span class="val" id="blendVal">95%</span></div>
+                <input type="range" id="blend" min="40" max="100" value="95" step="5">
             </div>
             <div class="control-group">
-                <div class="control-label"><label>Color Match</label><span class="val" id="colorVal">60%</span></div>
-                <input type="range" id="colorMatch" min="0" max="100" value="60" step="5">
+                <div class="control-label"><label>Color Match</label>                <span class="val" id="colorVal">80%</span></div>
+                <input type="range" id="colorMatch" min="0" max="100" value="80" step="5">
             </div>
         </div>
         <div class="control-row">
             <div class="control-group">
-                <div class="control-label"><label>Feather Edge</label><span class="val" id="featherVal">15px</span></div>
-                <input type="range" id="feather" min="3" max="40" value="15" step="1">
+                <div class="control-label"><label>Feather Edge</label>                <span class="val" id="featherVal">8px</span></div>
+                <input type="range" id="feather" min="3" max="40" value="8" step="1">
             </div>
             <div class="control-group">
                 <div class="control-label"><label>Face Scale</label><span class="val" id="scaleVal">100%</span></div>
@@ -401,18 +401,23 @@ async function doSwap() {
 
         updateProgress(55);
 
-        // === 4. Build face mask from target landmarks (convex hull + feather) ===
+        // === 4. Build face mask from target landmarks (expanded coverage) ===
         const maskCanvas = document.createElement("canvas");
         maskCanvas.width = targetCanvas.width;
         maskCanvas.height = targetCanvas.height;
         const mCtx = maskCanvas.getContext("2d");
 
-        // Build a better face outline: jaw + cheeks + forehead
-        // Use jaw points 0-16, then forehead points 68-72
+        // Build expanded face outline: jaw + temples + forehead
+        // Use jaw 0-16, then go up the temples to forehead points
         const faceOutline = [];
-        for (let i = 0; i <= 16; i++) faceOutline.push(tgtPts[i]); // jaw line
-        // forehead points (added after 68)
-        for (let i = 68; i < srcPts.length; i++) faceOutline.push(tgtPts[i]);
+        // Right jaw (0 to 16 = right to left)
+        for (let i = 0; i <= 16; i++) faceOutline.push(tgtPts[i]);
+        // Temple right (from jaw point 16 up to forehead)
+        faceOutline.push({ x: tgtPts[16].x + (tgtPts[26].x - tgtPts[16].x) * 0.3, y: tgtPts[16].y - Math.abs(tgtPts[16].y - tgtPts[26].y) * 0.5 });
+        // Forehead points (68-74, already added)
+        for (let i = 74; i >= 68; i--) faceOutline.push(tgtPts[i]);
+        // Temple left (from forehead down to jaw point 0)
+        faceOutline.push({ x: tgtPts[0].x + (tgtPts[17].x - tgtPts[0].x) * 0.3, y: tgtPts[0].y - Math.abs(tgtPts[0].y - tgtPts[17].y) * 0.5 });
 
         // Apply face scale to mask
         const scaledOutline = faceOutline.map(p => ({
@@ -432,7 +437,9 @@ async function doSwap() {
             mCtx.quadraticCurveTo(prev.x, prev.y, midX, midY);
         }
         mCtx.closePath();
-        mCtx.filter = "blur(" + feather + "px)";
+        // Smaller feather for tighter blend
+        const maskFeather = Math.min(feather, 10);
+        mCtx.filter = "blur(" + maskFeather + "px)";
         mCtx.fill();
 
         updateProgress(55);
