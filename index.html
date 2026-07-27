@@ -429,14 +429,14 @@ async function doSwap() {
         const maskRy = tgtBox.height * 0.55 * faceScale;
 
         // Build gradient mask: solid in center, smoothly fading to 0 at edges
-        const layers = 30;
+        const layers = 40;
         for (let i = layers; i >= 1; i--) {
             const t = i / layers;
             const rx = maskRx * t;
             const ry = maskRy * t;
-            // Smooth sigmoid-like fade: strong in center, gentle at edges
-            const opacity = i === layers ? 0.02 : Math.pow(1 - t, 1.5);
-            mCtx.globalAlpha = Math.min(1, opacity + (i <= 5 ? 1 : 0));
+            // Smooth cosine-like fade for most natural transition
+            const opacity = i === layers ? 0.01 : Math.pow(1 - t, 2.0);
+            mCtx.globalAlpha = Math.min(1, opacity + (i <= 8 ? 1 : 0));
             mCtx.fillStyle = "#fff";
             mCtx.beginPath();
             mCtx.ellipse(maskCx, maskCy, rx, ry, 0, 0, Math.PI * 2);
@@ -446,14 +446,14 @@ async function doSwap() {
         // Ensure center is fully opaque
         mCtx.fillStyle = "#fff";
         mCtx.beginPath();
-        mCtx.ellipse(maskCx, maskCy, maskRx * 0.2, maskRy * 0.2, 0, 0, Math.PI * 2);
+        mCtx.ellipse(maskCx, maskCy, maskRx * 0.15, maskRy * 0.15, 0, 0, Math.PI * 2);
         mCtx.fill();
         // Apply feather blur for smooth transitions
         const blurredMask = document.createElement("canvas");
         blurredMask.width = targetCanvas.width;
         blurredMask.height = targetCanvas.height;
         const bCtx = blurredMask.getContext("2d");
-        bCtx.filter = "blur(" + feather + "px)";
+        bCtx.filter = "blur(" + (feather + 4) + "px)";
         bCtx.drawImage(maskCanvas, 0, 0);
         // Copy back
         mCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
@@ -546,16 +546,15 @@ async function doSwap() {
 
         updateProgress(90);
 
-        // === 6b. Post-blend edge color harmonization ===
-        // Sample border ring of the face region and blend colors to smooth any remaining seam
+        // === 6b. Post-blend multi-band color harmonization ===
+        // Blend result toward target in a wide border zone for seamless color transition
         const finalData = rCtx.getImageData(0, 0, result.width, result.height);
         const origData = targetCanvas.getContext("2d").getImageData(0, 0, result.width, result.height);
-        // Build a "border ring" mask: only pixels at the mask edge (alpha 20-150)
         for (let i = 0; i < finalData.data.length; i += 4) {
             const maskAlpha = maskData2.data[i + 3];
-            if (maskAlpha > 15 && maskAlpha < 160) {
-                // Edge zone: blend 30% toward original to smooth color seam
-                const edgeBlend = 0.3 * (1 - maskAlpha / 160);
+            if (maskAlpha < 200) {
+                // Blend toward original: 0% at center (alpha=200), 60% at edge (alpha=0)
+                const edgeBlend = (1 - maskAlpha / 200) * 0.6;
                 finalData.data[i]   = finalData.data[i]   * (1 - edgeBlend) + origData.data[i]   * edgeBlend;
                 finalData.data[i+1] = finalData.data[i+1] * (1 - edgeBlend) + origData.data[i+1] * edgeBlend;
                 finalData.data[i+2] = finalData.data[i+2] * (1 - edgeBlend) + origData.data[i+2] * edgeBlend;
@@ -563,28 +562,43 @@ async function doSwap() {
         }
         rCtx.putImageData(finalData, 0, 0);
 
-        // === 6c. Final light blur on face edge to smooth any remaining harsh transition ===
+        // === 6c. Edge-zone blur for seamless transition ===
         const finalBlur = document.createElement("canvas");
         finalBlur.width = result.width;
         finalBlur.height = result.height;
         const fbCtx = finalBlur.getContext("2d");
-        fbCtx.filter = "blur(2px)";
+        fbCtx.filter = "blur(3px)";
         fbCtx.drawImage(result, 0, 0);
-        // Only apply blur at mask edges (alpha 10-180), keep center sharp
         const fbCtx2 = finalBlur.getContext("2d");
         const fbData = fbCtx2.getImageData(0, 0, result.width, result.height);
         const sharpData = rCtx.getImageData(0, 0, result.width, result.height);
         for (let i = 0; i < sharpData.data.length; i += 4) {
             const ma = maskData2.data[i + 3];
-            if (ma > 5 && ma < 200) {
-                // At edges: blend 50% blurred version
-                const b = 0.5 * (1 - ma / 200);
+            if (ma > 2 && ma < 220) {
+                // Wider edge zone, gentler blur blend (0.4 max instead of 0.5)
+                const b = 0.4 * (1 - ma / 220);
                 sharpData.data[i]   = sharpData.data[i]   * (1 - b) + fbData.data[i]   * b;
                 sharpData.data[i+1] = sharpData.data[i+1] * (1 - b) + fbData.data[i+1] * b;
                 sharpData.data[i+2] = sharpData.data[i+2] * (1 - b) + fbData.data[i+2] * b;
             }
         }
         rCtx.putImageData(sharpData, 0, 0);
+
+        // === 6d. Final skin-tone merge at very edge (last 10px) ===
+        // Lerp result color toward target color at the extreme edge for invisible seam
+        const seamData = rCtx.getImageData(0, 0, result.width, result.height);
+        const seamOrig = targetCanvas.getContext("2d").getImageData(0, 0, result.width, result.height);
+        for (let i = 0; i < seamData.data.length; i += 4) {
+            const ma = maskData2.data[i + 3];
+            if (ma > 0 && ma < 40) {
+                // Extreme edge: 70% toward original
+                const s = 0.7 * (1 - ma / 40);
+                seamData.data[i]   = seamData.data[i]   * (1 - s) + seamOrig.data[i]   * s;
+                seamData.data[i+1] = seamData.data[i+1] * (1 - s) + seamOrig.data[i+1] * s;
+                seamData.data[i+2] = seamData.data[i+2] * (1 - s) + seamOrig.data[i+2] * s;
+            }
+        }
+        rCtx.putImageData(seamData, 0, 0);
 
         updateProgress(100);
 
