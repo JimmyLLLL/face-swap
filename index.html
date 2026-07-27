@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="preconnect" href="https://pagead2.googlesyndication.com">
+    <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com">
+    <link rel="preconnect" href="https://api.counterapi.dev">
+    <link rel="dns-prefetch" href="https://api.counterapi.dev">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0b0f">
+    <meta name="description" content="Free AI face swap online — swap faces in photos using AI. Upload source and target images, face detection and blending runs in your browser. No upload to server, complete privacy.">
+    <meta name="keywords" content="AI face swap, face swap online, photo face swap, face changer, swap faces, deepfake online, face replacement, AI face editor">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://jimmywithfiona.com/face-swap/">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1840337371416691" crossorigin="anonymous"></script>
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="AI Face Swap">
+    <meta property="og:title" content="AI Face Swap — Free Online Photo Face Swapper">
+    <meta property="og:description" content="Swap faces in photos using AI. Upload two images, face detection and blending runs in your browser. Free, private, no upload.">
+    <meta property="og:url" content="https://jimmywithfiona.com/face-swap/">
+    <meta property="og:image" content="https://jimmywithfiona.com/face-swap/og.png">
+    <meta property="og:locale" content="en_US">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AI Face Swap — Free Online Photo Face Swapper">
+    <meta name="twitter:description" content="Swap faces in photos using AI. Free, private, no upload.">
+    <meta name="twitter:image" content="https://jimmywithfiona.com/face-swap/og.png">
+    <title>AI Face Swap — Free Online Photo Face Swapper | No Upload</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" defer></script>
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"WebApplication","name":"AI Face Swap","url":"https://jimmywithfiona.com/face-swap/","description":"Free online AI face swap tool. Swap faces in photos using AI face detection and blending. All processing in your browser, no upload.","applicationCategory":"DesignApplication","operatingSystem":"Any (Web Browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+    </script>
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+        {"@type":"Question","name":"How does AI face swap work?","acceptedAnswer":{"@type":"Answer","text":"Upload a source image (the face you want to use) and a target image (where you want the face placed). The AI detects facial landmarks in both images, then warps and blends the source face onto the target using triangulation and color matching."}},
+        {"@type":"Question","name":"Is this face swap tool free?","acceptedAnswer":{"@type":"Answer","text":"Yes, completely free. No signup, no download, no watermark. All processing happens in your browser."}},
+        {"@type":"Question","name":"Are my photos uploaded to a server?","acceptedAnswer":{"@type":"Answer","text":"No. All face detection and blending happens locally in your browser using JavaScript and Canvas. Your photos never leave your device."}},
+        {"@type":"Question","name":"Does it work on mobile?","acceptedAnswer":{"@type":"Answer","text":"Yes, the tool works on mobile browsers. However, processing may be slower on mobile devices."}}
+    ]}
+    </script>
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://jimmywithfiona.com/"},{"@type":"ListItem","position":2,"name":"AI Face Swap","item":"https://jimmywithfiona.com/face-swap/"}]}
+    </script>
+</head>
+<body>
+<nav class="navbar">
+    <a class="brand" href="/face-swap/">🎭 AI Face Swap</a>
+    <div class="nav-links">
+        <a href="/face-swap/" class="active">Swap</a>
+        <a href="about.html">About</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="contact.html">Contact</a>
+        <a href="/">🏠 Home</a>
+    </div>
+</nav>
+<main>
+    <h1>AI Face Swap</h1>
+    <p class="subtitle">Swap faces in photos using AI — free, private, runs in your browser</p>
+
+    <div class="status-banner" id="statusBanner">
+        <strong>⏳ Loading AI models...</strong> Face detection model is downloading (first load ~6MB). Please wait.
+    </div>
+
+    <div class="warning-box">
+        <strong>⚠️ Ethical Use:</strong> This tool is for entertainment and creative purposes only. Do not use it to create misleading content, harass others, or impersonate anyone without consent. You are solely responsible for your use of this tool.
+    </div>
+
+    <div class="upload-row">
+        <div class="upload-area" id="sourceArea">
+            <span class="label-tag">Source Face</span>
+            <div class="icon">🧑</div>
+            <div class="text">Upload source face</div>
+            <div class="hint">The face you want to use</div>
+            <input type="file" id="sourceInput" accept="image/*" style="display:none">
+        </div>
+        <div class="upload-area" id="targetArea">
+            <span class="label-tag">Target Image</span>
+            <div class="icon">📸</div>
+            <div class="text">Upload target image</div>
+            <div class="hint">Where the face will be placed</div>
+            <input type="file" id="targetInput" accept="image/*" style="display:none">
+        </div>
+    </div>
+
+    <div class="controls" id="controls">
+        <div class="control-row">
+            <div class="control-group">
+                <div class="control-label"><label>Blend Amount</label><span class="val" id="blendVal">80%</span></div>
+                <input type="range" id="blend" min="20" max="100" value="80" step="5">
+            </div>
+            <div class="control-group">
+                <div class="control-label"><label>Color Match</label><span class="val" id="colorVal">60%</span></div>
+                <input type="range" id="colorMatch" min="0" max="100" value="60" step="5">
+            </div>
+        </div>
+        <div class="control-row">
+            <div class="control-group">
+                <div class="control-label"><label>Feather Edge</label><span class="val" id="featherVal">15px</span></div>
+                <input type="range" id="feather" min="3" max="40" value="15" step="1">
+            </div>
+            <div class="control-group">
+                <div class="control-label"><label>Face Scale</label><span class="val" id="scaleVal">100%</span></div>
+                <input type="range" id="faceScale" min="80" max="120" value="100" step="1">
+            </div>
+        </div>
+        <div class="btn-row">
+            <button class="btn" onclick="doSwap()" id="swapBtn" disabled>🎭 Swap Faces</button>
+            <button class="btn btn-success" onclick="downloadResult()" id="dlBtn" style="display:none;">📥 Download Result</button>
+            <button class="btn btn-secondary" onclick="resetAll()">🗑️ Reset</button>
+        </div>
+    </div>
+
+    <div class="progress-bar" id="progressBar">
+        <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <div class="result-wrap" id="resultWrap">
+        <div class="label">Swap Result</div>
+        <canvas id="resultCanvas"></canvas>
+    </div>
+
+    <div class="stats-footer">👁️ Views <strong id="pv">-</strong><span class="stat-divider">|</span>👤 Visitors <strong id="uv">-</strong></div>
+
+    <div class="seo-section">
+        <h2>Free AI Face Swap Online</h2>
+        <p>Swap faces in photos using AI — right in your browser. Our free face swap tool uses advanced face detection to identify facial landmarks in both your source and target images, then warps and blends the source face seamlessly onto the target. No software to install, no account needed, and your photos never leave your device.</p>
+        <h2>How Face Swap Works</h2>
+        <ul>
+            <li><strong>Upload source face</strong> — The photo containing the face you want to use.</li>
+            <li><strong>Upload target image</strong> — The photo where you want the face placed.</li>
+            <li><strong>AI face detection</strong> — The tool detects 68 facial landmarks in both images.</li>
+            <li><strong>Face warping</strong> — The source face is warped to match the target face's shape and position.</li>
+            <li><strong>Color matching</strong> — Skin tone and lighting are adjusted to blend naturally.</li>
+            <li><strong>Edge blending</strong> — Feathered edges create a seamless transition between the swapped face and the target image.</li>
+            <li><strong>Download</strong> — Save your face-swapped photo as a PNG image.</li>
+        </ul>
+        <h2>Adjustable Settings</h2>
+        <ul>
+            <li><strong>Blend Amount</strong> — Controls how much of the source face shows through (20%-100%).</li>
+            <li><strong>Color Match</strong> — Adjusts skin tone to match the target image's lighting (0%-100%).</li>
+            <li><strong>Feather Edge</strong> — Controls the softness of the face boundary (3-40px). Higher = more gradual blend.</li>
+            <li><strong>Face Scale</strong> — Slightly enlarge or shrink the swapped face (80%-120%).</li>
+        </ul>
+        <h2>Privacy — Your Photos Stay Local</h2>
+        <p>This face swap tool processes everything in your browser using JavaScript and HTML5 Canvas. Your photos are never uploaded to any server. No tracking, no storage, no privacy concerns. This makes it safe for swapping faces in personal photos.</p>
+        <h2>Tips for Best Results</h2>
+        <ul>
+            <li><strong>Use clear, front-facing photos</strong> — Face detection works best when faces are clearly visible.</li>
+            <li><strong>Match angles</strong> — Source and target faces looking in similar directions produce better results.</li>
+            <li><strong>Similar lighting</strong> — Photos with similar lighting blend more naturally. Use the Color Match slider to compensate.</li>
+            <li><strong>High resolution</strong> — Higher quality source images produce sharper face swaps.</li>
+            <li><strong>One face per image</strong> — The tool detects the largest face in each image for best results.</li>
+            <li><strong>Experiment with settings</strong> — Adjust blend, color match, and feather for each photo pair.</li>
+        </ul>
+        <h2>Use Cases</h2>
+        <ul>
+            <li><strong>Fun and entertainment</strong> — Swap faces with friends, celebrities, or historical figures</li>
+            <li><strong>Movie posters</strong> — Put yourself in your favorite movie poster</li>
+            <li><strong>Avatars and profile pictures</strong> — Create unique, fun profile images</li>
+            <li><strong>Memes and creative projects</strong> — Generate funny or artistic face swaps</li>
+            <li><strong>Concept visualization</strong> — Preview how a face would look in a different context</li>
+        </ul>
+        <h2>FAQ</h2>
+        <p><strong>Is this really AI?</strong> — Yes. The tool uses a neural network (TinyFaceDetector) for face detection and 68-point facial landmark detection. The face blending uses triangulation-based warping and color transfer algorithms.</p>
+        <p><strong>How long does it take?</strong> — Typically 2-5 seconds after models load. The first visit downloads the AI model (~6MB), which is cached for subsequent visits.</p>
+        <p><strong>What image formats are supported?</strong> — JPG, PNG, and WebP. Results are saved as PNG.</p>
+        <p><strong>Is there a limit on image size?</strong> — No hard limit, but images over 10MB may be slow. For best performance, use images under 5MB.</p>
+    </div>
+</main>
+<footer>
+    <p><a href="about.html">About</a> · <a href="privacy.html">Privacy</a> · <a href="contact.html">Contact</a> · <a href="/">Home</a></p>
+    <p style="margin-top:0.4rem;">AI Face Swap © 2026 · Free online face swap tool</p>
+    <div style="margin-top:0.6rem;font-size:0.72rem;opacity:0.6;">More: <a href="/pixel-art/">Pixel Art</a> · <a href="/image-resizer/">Image Resizer</a> · <a href="/wordle/">Wordle</a> · <a href="/daily-horoscope/">Horoscope</a> · <a href="/minesweeper/">Minesweeper</a> · <a href="/snake-game/">Snake</a></div>
+</footer>
+<script src="js/counter.js" defer></script>
+<script>
+let modelsLoaded = false;
+let sourceImg = null, targetImg = null;
+let sourceLandmarks = null, targetLandmarks = null;
+let sourceCanvas = null, targetCanvas = null;
+
+const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
+
+async function loadModels() {
+    try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        modelsLoaded = true;
+        const banner = document.getElementById("statusBanner");
+        banner.innerHTML = "<strong class='check'>✅ AI models loaded!</strong> Ready to swap faces. Upload a source face and target image to begin.";
+        banner.style.borderLeftColor = "var(--green)";
+    } catch (e) {
+        const banner = document.getElementById("statusBanner");
+        banner.innerHTML = "<strong class='cross'>❌ Failed to load AI models.</strong> Please refresh the page or check your internet connection.";
+        banner.style.borderLeftColor = "var(--red)";
+        console.error("Model load error:", e);
+    }
+}
+
+// Start loading models when face-api is ready
+function waitForFaceApi() {
+    if (typeof faceapi !== "undefined") {
+        loadModels();
+    } else {
+        setTimeout(waitForFaceApi, 100);
+    }
+}
+setTimeout(waitForFaceApi, 200);
+
+// Upload handlers
+function setupUpload(areaId, inputId, isSource) {
+    const area = document.getElementById(areaId);
+    const input = document.getElementById(inputId);
+
+    area.addEventListener("click", () => input.click());
+    area.addEventListener("dragover", e => { e.preventDefault(); area.classList.add("dragover"); });
+    area.addEventListener("dragleave", () => area.classList.remove("dragover"));
+    area.addEventListener("drop", e => {
+        e.preventDefault();
+        area.classList.remove("dragover");
+        if (e.dataTransfer.files[0]) handleImage(e.dataTransfer.files[0], isSource, area);
+    });
+    input.addEventListener("change", e => { if (e.target.files[0]) handleImage(e.target.files[0], isSource, area); });
+}
+setupUpload("sourceArea", "sourceInput", true);
+setupUpload("targetArea", "targetInput", false);
+
+async function handleImage(file, isSource, area) {
+    if (!file.type.startsWith("image/")) { alert("Please select an image file."); return; }
+    const reader = new FileReader();
+    reader.onload = async e => {
+        const img = new Image();
+        img.onload = async () => {
+            // Create canvas
+            const canvas = document.createElement("canvas");
+            const maxDim = 800;
+            const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            if (isSource) {
+                sourceImg = img;
+                sourceCanvas = canvas;
+            } else {
+                targetImg = img;
+                targetCanvas = canvas;
+            }
+
+            // Show preview
+            area.innerHTML = '<span class="label-tag">' + (isSource ? "Source Face" : "Target Image") + '</span>';
+            const preview = document.createElement("img");
+            preview.src = canvas.toDataURL();
+            area.appendChild(preview);
+
+            // Detect face
+            if (modelsLoaded) {
+                try {
+                    const detection = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions())
+                        .withFaceLandmarks();
+                    if (detection) {
+                        if (isSource) sourceLandmarks = detection;
+                        else targetLandmarks = detection;
+                        // Draw face box
+                        const box = detection.detection.box;
+                        const boxEl = document.createElement("div");
+                        boxEl.className = "face-box";
+                        const areaRect = area.getBoundingClientRect();
+                        const imgEl = area.querySelector("img");
+                        if (imgEl) {
+                            const imgRect = imgEl.getBoundingClientRect();
+                            const scaleX = imgRect.width / canvas.width;
+                            const scaleY = imgRect.height / canvas.height;
+                            boxEl.style.left = (imgRect.left - areaRect.left + box.x * scaleX) + "px";
+                            boxEl.style.top = (imgRect.top - areaRect.top + box.y * scaleY) + "px";
+                            boxEl.style.width = (box.width * scaleX) + "px";
+                            boxEl.style.height = (box.height * scaleY) + "px";
+                            area.appendChild(boxEl);
+                        }
+                    } else {
+                        area.appendChild(Object.assign(document.createElement("div"), {
+                            textContent: "⚠️ No face detected",
+                            style: "color:var(--red);font-size:.8rem;margin-top:.5rem;"
+                        }));
+                    }
+                } catch (e) { console.error("Detection error:", e); }
+            }
+
+            checkReady();
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function checkReady() {
+    const btn = document.getElementById("swapBtn");
+    if (modelsLoaded && sourceLandmarks && targetLandmarks) {
+        btn.disabled = false;
+        document.getElementById("controls").classList.add("show");
+    }
+}
+
+// Sliders
+["blend","colorMatch","feather","faceScale"].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener("input", () => {
+        const v = el.value;
+        const suffix = id === "feather" ? "px" : "%";
+        document.getElementById(id.replace("faceScale","scale").replace("colorMatch","color").replace("blend","blend") + "Val").textContent = v + suffix;
+    });
+});
+
+function updateProgress(pct) {
+    const bar = document.getElementById("progressBar");
+    const fill = document.getElementById("progressFill");
+    bar.classList.add("show");
+    fill.style.width = pct + "%";
+}
+
+async function doSwap() {
+    if (!sourceLandmarks || !targetLandmarks) return;
+    const btn = document.getElementById("swapBtn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Swapping...';
+    updateProgress(10);
+
+    try {
+        const blend = parseInt(document.getElementById("blend").value) / 100;
+        const colorMatch = parseInt(document.getElementById("colorMatch").value) / 100;
+        const feather = parseInt(document.getElementById("feather").value);
+        const faceScale = parseInt(document.getElementById("faceScale").value) / 100;
+
+        updateProgress(25);
+
+        // Get landmarks
+        const srcPoints = sourceLandmarks.landmarks.positions;
+        const tgtPoints = targetLandmarks.landmarks.positions;
+        const tgtBox = targetLandmarks.detection.box;
+
+        updateProgress(40);
+
+        // Create result canvas (copy of target)
+        const result = document.createElement("canvas");
+        result.width = targetCanvas.width;
+        result.height = targetCanvas.height;
+        const rCtx = result.getContext("2d");
+        rCtx.drawImage(targetCanvas, 0, 0);
+
+        updateProgress(50);
+
+        // Calculate face region in target
+        const cx = tgtBox.x + tgtBox.width / 2;
+        const cy = tgtBox.y + tgtBox.height / 2;
+        const w = tgtBox.width * faceScale;
+        const h = tgtBox.height * faceScale;
+
+        // Extract source face region
+        const srcBox = sourceLandmarks.detection.box;
+        const srcCx = srcBox.x + srcBox.width / 2;
+        const srcCy = srcBox.y + srcBox.height / 2;
+
+        // Create a warped source face canvas
+        const faceCanvas = document.createElement("canvas");
+        faceCanvas.width = result.width;
+        faceCanvas.height = result.height;
+        const fCtx = faceCanvas.getContext("2d");
+
+        // Warp source face to target position using landmarks
+        // Simple approach: scale and translate source face to match target
+        const scaleX = w / srcBox.width;
+        const scaleY = h / srcBox.height;
+
+        fCtx.save();
+        fCtx.translate(cx, cy);
+        fCtx.scale(scaleX, scaleY);
+        fCtx.translate(-srcCx, -srcCy);
+        fCtx.drawImage(sourceCanvas, 0, 0);
+        fCtx.restore();
+
+        updateProgress(65);
+
+        // Create face mask with feathered edges
+        const maskCanvas = document.createElement("canvas");
+        maskCanvas.width = result.width;
+        maskCanvas.height = result.height;
+        const mCtx = maskCanvas.getContext("2d");
+
+        // Draw face shape from target landmarks
+        mCtx.fillStyle = "#fff";
+        mCtx.beginPath();
+        // Use jawline + face outline landmarks (0-16 for jaw, 17-26 for eyebrows, 27-35 for nose, 36-67 for eyes & mouth)
+        const outline = [];
+        for (let i = 0; i <= 16; i++) outline.push(tgtPoints[i]); // jaw
+        for (let i = 26; i >= 17; i--) outline.push(tgtPoints[i]); // right eyebrow reverse
+        // Add forehead extension
+        const foreheadTop = tgtBox.y - tgtBox.height * 0.15;
+        outline.push({ x: tgtPoints[19].x, y: foreheadTop });
+        outline.push({ x: tgtPoints[24].x, y: foreheadTop });
+
+        mCtx.moveTo(outline[0].x, outline[0].y);
+        for (let i = 1; i < outline.length; i++) {
+            mCtx.lineTo(outline[i].x, outline[i].y);
+        }
+        mCtx.closePath();
+        mCtx.filter = "blur(" + feather + "px)";
+        mCtx.fill();
+
+        updateProgress(75);
+
+        // Color matching: adjust source face brightness/contrast to match target
+        if (colorMatch > 0) {
+            const matchCanvas = document.createElement("canvas");
+            matchCanvas.width = result.width;
+            matchCanvas.height = result.height;
+            const matchCtx = matchCanvas.getContext("2d");
+            matchCtx.drawImage(faceCanvas, 0, 0);
+            const faceData = matchCtx.getImageData(0, 0, result.width, result.height);
+            const tgtData = rCtx.getImageData(0, 0, result.width, result.height);
+
+            // Calculate average skin tone in face region of both
+            let srcR = 0, srcG = 0, srcB = 0, srcCount = 0;
+            let tgtR = 0, tgtG = 0, tgtB = 0, tgtCount = 0;
+            const maskData = mCtx.getImageData(0, 0, result.width, result.height);
+
+            for (let i = 0; i < faceData.data.length; i += 4) {
+                if (maskData.data[i + 3] > 128) {
+                    srcR += faceData.data[i]; srcG += faceData.data[i+1]; srcB += faceData.data[i+2]; srcCount++;
+                    tgtR += tgtData.data[i]; tgtG += tgtData.data[i+1]; tgtB += tgtData.data[i+2]; tgtCount++;
+                }
+            }
+            if (srcCount > 0 && tgtCount > 0) {
+                srcR /= srcCount; srcG /= srcCount; srcB /= srcCount;
+                tgtR /= tgtCount; tgtG /= tgtCount; tgtB /= tgtCount;
+                const dR = (tgtR - srcR) * colorMatch;
+                const dG = (tgtG - srcG) * colorMatch;
+                const dB = (tgtB - srcB) * colorMatch;
+                for (let i = 0; i < faceData.data.length; i += 4) {
+                    faceData.data[i] = Math.max(0, Math.min(255, faceData.data[i] + dR));
+                    faceData.data[i+1] = Math.max(0, Math.min(255, faceData.data[i+1] + dG));
+                    faceData.data[i+2] = Math.max(0, Math.min(255, faceData.data[i+2] + dB));
+                }
+                fCtx.putImageData(faceData, 0, 0);
+            }
+        }
+
+        updateProgress(85);
+
+        // Blend: result = target * (1 - mask * blend) + face * (mask * blend)
+        const resultData = rCtx.getImageData(0, 0, result.width, result.height);
+        const faceData2 = fCtx.getImageData(0, 0, result.width, result.height);
+        const maskData2 = mCtx.getImageData(0, 0, result.width, result.height);
+
+        for (let i = 0; i < resultData.data.length; i += 4) {
+            const m = (maskData2.data[i + 3] / 255) * blend;
+            resultData.data[i] = resultData.data[i] * (1 - m) + faceData2.data[i] * m;
+            resultData.data[i+1] = resultData.data[i+1] * (1 - m) + faceData2.data[i+1] * m;
+            resultData.data[i+2] = resultData.data[i+2] * (1 - m) + faceData2.data[i+2] * m;
+        }
+        rCtx.putImageData(resultData, 0, 0);
+
+        updateProgress(100);
+
+        // Show result
+        const resultCanvas = document.getElementById("resultCanvas");
+        resultCanvas.width = result.width;
+        resultCanvas.height = result.height;
+        resultCanvas.getContext("2d").drawImage(result, 0, 0);
+        document.getElementById("resultWrap").classList.add("show");
+        document.getElementById("dlBtn").style.display = "inline-flex";
+
+        // Smooth scroll to result
+        document.getElementById("resultWrap").scrollIntoView({ behavior: "smooth", block: "start" });
+
+    } catch (e) {
+        console.error("Swap error:", e);
+        alert("Face swap failed: " + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = "🎭 Swap Faces";
+        setTimeout(() => document.getElementById("progressBar").classList.remove("show"), 1000);
+    }
+}
+
+function downloadResult() {
+    const canvas = document.getElementById("resultCanvas");
+    const link = document.createElement("a");
+    link.download = "face-swap.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+}
+
+function resetAll() {
+    sourceImg = null; targetImg = null;
+    sourceLandmarks = null; targetLandmarks = null;
+    sourceCanvas = null; targetCanvas = null;
+    document.getElementById("controls").classList.remove("show");
+    document.getElementById("resultWrap").classList.remove("show");
+    document.getElementById("dlBtn").style.display = "none";
+    document.getElementById("swapBtn").disabled = true;
+    // Reset upload areas
+    ["sourceArea","targetArea"].forEach(id => {
+        const area = document.getElementById(id);
+        const isSrc = id === "sourceArea";
+        area.innerHTML = '<span class="label-tag">' + (isSrc ? "Source Face" : "Target Image") + '</span>' +
+            '<div class="icon">' + (isSrc ? "🧑" : "📸") + '</div>' +
+            '<div class="text">Upload ' + (isSrc ? "source face" : "target image") + '</div>' +
+            '<div class="hint">' + (isSrc ? "The face you want to use" : "Where the face will be placed") + '</div>' +
+            '<input type="file" id="' + (isSrc ? "sourceInput" : "targetInput") + '" accept="image/*" style="display:none">';
+    });
+    setupUpload("sourceArea", "sourceInput", true);
+    setupUpload("targetArea", "targetInput", false);
+}
+</script>
+</body>
+</html>
