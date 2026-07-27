@@ -91,8 +91,8 @@
                 <input type="range" id="blend" min="40" max="100" value="95" step="5">
             </div>
             <div class="control-group">
-                <div class="control-label"><label>Color Match</label>                <span class="val" id="colorVal">80%</span></div>
-                <input type="range" id="colorMatch" min="0" max="100" value="80" step="5">
+                <div class="control-label"><label>Color Match</label>                <span class="val" id="colorVal">50%</span></div>
+                <input type="range" id="colorMatch" min="0" max="100" value="50" step="5">
             </div>
         </div>
         <div class="control-row">
@@ -455,7 +455,7 @@ async function doSwap() {
         // Ensure center is fully opaque
         mCtx.fillStyle = "#fff";
         mCtx.beginPath();
-        mCtx.ellipse(maskCx, maskCy, maskRx * 0.15, maskRy * 0.15, 0, 0, Math.PI * 2);
+        mCtx.ellipse(maskCx, maskCy, maskRx * 0.32, maskRy * 0.32, 0, 0, Math.PI * 2);
         mCtx.fill();
         // Apply feather blur for smooth transitions
         const blurredMask = document.createElement("canvas");
@@ -472,17 +472,13 @@ async function doSwap() {
         updateProgress(55);
 
         // === 4b. Skin smoothing on warped face (reduce warping artifacts) ===
-        // Multi-pass blur: heavier on face interior, lighter on edges (preserve features)
+        // Single light pass to smooth triangle seams only (preserve source features)
         const smoothCanvas = document.createElement("canvas");
         smoothCanvas.width = targetCanvas.width;
         smoothCanvas.height = targetCanvas.height;
         const sCtx = smoothCanvas.getContext("2d");
-        // First pass: light blur to smooth triangle seams
-        sCtx.filter = "blur(1px)";
+        sCtx.filter = "blur(0.8px)";
         sCtx.drawImage(warpedCanvas, 0, 0);
-        // Second pass: very light blur for skin texture smoothing
-        sCtx.filter = "blur(0.5px)";
-        sCtx.drawImage(smoothCanvas, 0, 0);
         // Copy back
         wCtx.clearRect(0, 0, warpedCanvas.width, warpedCanvas.height);
         wCtx.drawImage(smoothCanvas, 0, 0);
@@ -561,9 +557,9 @@ async function doSwap() {
         const origData = targetCanvas.getContext("2d").getImageData(0, 0, result.width, result.height);
         for (let i = 0; i < finalData.data.length; i += 4) {
             const maskAlpha = maskData2.data[i + 3];
-            if (maskAlpha < 200) {
-                // Blend toward original: 0% at center (alpha=200), 60% at edge (alpha=0)
-                const edgeBlend = (1 - maskAlpha / 200) * 0.6;
+            if (maskAlpha < 150) {
+                // Blend toward original: 0% at alpha=150, 25% at edge (alpha=0)
+                const edgeBlend = (1 - maskAlpha / 150) * 0.25;
                 finalData.data[i]   = finalData.data[i]   * (1 - edgeBlend) + origData.data[i]   * edgeBlend;
                 finalData.data[i+1] = finalData.data[i+1] * (1 - edgeBlend) + origData.data[i+1] * edgeBlend;
                 finalData.data[i+2] = finalData.data[i+2] * (1 - edgeBlend) + origData.data[i+2] * edgeBlend;
@@ -599,9 +595,9 @@ async function doSwap() {
         const seamOrig = targetCanvas.getContext("2d").getImageData(0, 0, result.width, result.height);
         for (let i = 0; i < seamData.data.length; i += 4) {
             const ma = maskData2.data[i + 3];
-            if (ma > 0 && ma < 40) {
-                // Extreme edge: 70% toward original
-                const s = 0.7 * (1 - ma / 40);
+            if (ma > 0 && ma < 25) {
+                // Extreme edge: 35% toward original (narrower zone, gentler)
+                const s = 0.35 * (1 - ma / 25);
                 seamData.data[i]   = seamData.data[i]   * (1 - s) + seamOrig.data[i]   * s;
                 seamData.data[i+1] = seamData.data[i+1] * (1 - s) + seamOrig.data[i+1] * s;
                 seamData.data[i+2] = seamData.data[i+2] * (1 - s) + seamOrig.data[i+2] * s;
