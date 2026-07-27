@@ -399,6 +399,21 @@ async function doSwap() {
             warpTriangle(sourceCanvas, wCtx, srcTri, scaledTgtTri);
         }
 
+        // === 3b. Fill transparent gaps in warped canvas with target image ===
+        // warpTriangle only fills triangle regions, leaving gaps as transparent black.
+        // Fill those gaps with target pixels to eliminate black shadows.
+        const wData = wCtx.getImageData(0, 0, warpedCanvas.width, warpedCanvas.height);
+        const tDataFill = targetCanvas.getContext("2d").getImageData(0, 0, targetCanvas.width, targetCanvas.height);
+        for (let i = 0; i < wData.data.length; i += 4) {
+            if (wData.data[i + 3] === 0) {
+                wData.data[i] = tDataFill.data[i];
+                wData.data[i + 1] = tDataFill.data[i + 1];
+                wData.data[i + 2] = tDataFill.data[i + 2];
+                wData.data[i + 3] = 255;
+            }
+        }
+        wCtx.putImageData(wData, 0, 0);
+
         updateProgress(55);
 
         // === 4. Build multi-gradient face mask (smooth center→edge fade) ===
