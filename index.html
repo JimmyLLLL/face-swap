@@ -647,26 +647,10 @@ function warpTriangle(srcCanvas, dstCtx, srcTri, dstTri) {
     const [s0, s1, s2] = srcTri;
     const [d0, d1, d2] = dstTri;
 
-    // Calculate bounding boxes
-    const sx = Math.min(s0.x, s1.x, s2.x), sy = Math.min(s0.y, s1.y, s2.y);
-    const sw = Math.ceil(Math.max(s0.x, s1.x, s2.x) - sx) + 1;
-    const sh = Math.ceil(Math.max(s0.y, s1.y, s2.y) - sy) + 1;
-    const dx = Math.min(d0.x, d1.x, d2.x), dy = Math.min(d0.y, d1.y, d2.y);
-    const dw = Math.ceil(Math.max(d0.x, d1.x, d2.x) - dx) + 1;
-    const dh = Math.ceil(Math.max(d0.y, d1.y, d2.y) - dy) + 1;
-
-    if (sw < 1 || sh < 1 || dw < 1 || dh < 1) return;
-
-    // Clip source region
-    const clipX = Math.max(0, sx), clipY = Math.max(0, sy);
-    const clipW = Math.min(srcCanvas.width - clipX, sw), clipH = Math.min(srcCanvas.height - clipY, sh);
-    if (clipW < 1 || clipH < 1) return;
-
-    // Affine transform matrix: src -> dst
-    // Solve: [d0 d1 d2] = M * [s0 s1 s2]
     const denom = (s1.x - s0.x) * (s2.y - s0.y) - (s2.x - s0.x) * (s1.y - s0.y);
     if (Math.abs(denom) < 0.001) return;
 
+    // Affine transform: maps source points to dest points
     const m11 = ((d1.x - d0.x) * (s2.y - s0.y) - (d2.x - d0.x) * (s1.y - s0.y)) / denom;
     const m12 = ((d1.y - d0.y) * (s2.y - s0.y) - (d2.y - d0.y) * (s1.y - s0.y)) / denom;
     const m21 = ((s1.x - s0.x) * (d2.x - d0.x) - (s2.x - s0.x) * (d1.x - d0.x)) / denom;
@@ -674,28 +658,18 @@ function warpTriangle(srcCanvas, dstCtx, srcTri, dstTri) {
     const tx = d0.x - m11 * s0.x - m21 * s0.y;
     const ty = d0.y - m12 * s0.x - m22 * s0.y;
 
-    // Extract source triangle region
-    const tmpCanvas = document.createElement("canvas");
-    tmpCanvas.width = dw + 2;
-    tmpCanvas.height = dh + 2;
-    const tmpCtx = tmpCanvas.getContext("2d");
-
-    tmpCtx.save();
-    tmpCtx.setTransform(m11, m12, m21, m22, tx - dx, ty - dy);
-    tmpCtx.imageSmoothingEnabled = true;
-    tmpCtx.imageSmoothingQuality = "high";
-    tmpCtx.drawImage(srcCanvas, 0, 0);
-    tmpCtx.restore();
-
-    // Clip to target triangle
+    // Clip to target triangle and draw warped source
     dstCtx.save();
     dstCtx.beginPath();
-    dstCtx.moveTo(d0.x - dx, d0.y - dy);
-    dstCtx.lineTo(d1.x - dx, d1.y - dy);
-    dstCtx.lineTo(d2.x - dx, d2.y - dy);
+    dstCtx.moveTo(d0.x, d0.y);
+    dstCtx.lineTo(d1.x, d1.y);
+    dstCtx.lineTo(d2.x, d2.y);
     dstCtx.closePath();
     dstCtx.clip();
-    dstCtx.drawImage(tmpCanvas, dx, dy);
+    dstCtx.setTransform(m11, m12, m21, m22, tx, ty);
+    dstCtx.imageSmoothingEnabled = true;
+    dstCtx.imageSmoothingQuality = "high";
+    dstCtx.drawImage(srcCanvas, 0, 0);
     dstCtx.restore();
 }
 
