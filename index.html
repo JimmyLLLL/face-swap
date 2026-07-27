@@ -235,7 +235,7 @@ async function handleImage(file, isSource, area) {
         img.onload = async () => {
             // Create canvas
             const canvas = document.createElement("canvas");
-            const maxDim = 800;
+            const maxDim = 500;
             const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
             canvas.width = img.width * scale;
             canvas.height = img.height * scale;
@@ -428,16 +428,11 @@ async function doSwap() {
 
         // === 5. Color matching: match source warped face to target skin tone ===
         if (colorMatch > 0) {
-            const matchCanvas = document.createElement("canvas");
-            matchCanvas.width = targetCanvas.width;
-            matchCanvas.height = targetCanvas.height;
-            const matchCtx = matchCanvas.getContext("2d");
-            matchCtx.drawImage(warpedCanvas, 0, 0);
-            const faceData = matchCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
+            const faceData = wCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
             const tgtData = targetCanvas.getContext("2d").getImageData(0, 0, targetCanvas.width, targetCanvas.height);
             const maskData = mCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
 
-            // Calculate mean + std for LAB-like adjustment
+            // Calculate mean skin tone
             let sR=0, sG=0, sB=0, tR=0, tG=0, tB=0, count=0;
             for (let i = 0; i < faceData.data.length; i += 4) {
                 if (maskData.data[i+3] > 100) {
@@ -449,27 +444,22 @@ async function doSwap() {
             if (count > 0) {
                 sR/=count; sG/=count; sB/=count;
                 tR/=count; tG/=count; tB/=count;
-                // Color transfer: shift mean + scale contrast
-                let sR2=0,sG2=0,sB2=0,tR2=0,tG2=0,tB2=0;
-                for (let i = 0; i < faceData.data.length; i += 4) {
-                    if (maskData.data[i+3] > 100) {
-                        sR2 += (faceData.data[i]-sR)**2;
-                        sG2 += (faceData.data[i+1]-sG)**2;
-                        sB2 += (faceData.data[i+2]-sB)**2;
-                        tR2 += (tgtData.data[i]-tR)**2;
-                        tG2 += (tgtData.data[i+1]-tG)**2;
-                        tB2 += (tgtData.data[i+2]-tB)**2;
-                    }
-                }
-                sR2=Math.sqrt(sR2/count); sG2=Math.sqrt(sG2/count); sB2=Math.sqrt(sB2/count);
-                tR2=Math.sqrt(tR2/count); tG2=Math.sqrt(tG2/count); tB2=Math.sqrt(tB2/count);
-
+                const dR = (tR - sR) * colorMatch;
+                const dG = (tG - sG) * colorMatch;
+                const dB = (tB - sB) * colorMatch;
+                // Also adjust contrast slightly toward target
+                const sMean = (sR + sG + sB) / 3;
+                const tMean = (tR + tG + tB) / 3;
+                const contrastFactor = 1 + (tMean - sMean) / 255 * colorMatch * 0.3;
                 for (let i = 0; i < faceData.data.length; i += 4) {
                     if (maskData.data[i+3] > 0) {
                         const a = maskData.data[i+3] / 255 * colorMatch;
-                        faceData.data[i]   = clampByte((faceData.data[i] - sR) / sR2 * tR2 + tR) * a + faceData.data[i] * (1-a);
-                        faceData.data[i+1] = clampByte((faceData.data[i+1] - sG) / sG2 * tG2 + tG) * a + faceData.data[i+1] * (1-a);
-                        faceData.data[i+2] = clampByte((faceData.data[i+2] - sB) / sB2 * tB2 + tB) * a + faceData.data[i+2] * (1-a);
+                        const nr = clampByte((faceData.data[i] - sR) * contrastFactor + tR);
+                        const ng = clampByte((faceData.data[i+1] - sG) * contrastFactor + tG);
+                        const nb = clampByte((faceData.data[i+2] - sB) * contrastFactor + tB);
+                        faceData.data[i]   = faceData.data[i]   * (1-a) + nr * a;
+                        faceData.data[i+1] = faceData.data[i+1] * (1-a) + ng * a;
+                        faceData.data[i+2] = faceData.data[i+2] * (1-a) + nb * a;
                     }
                 }
                 wCtx.putImageData(faceData, 0, 0);
@@ -496,60 +486,6 @@ async function doSwap() {
             resultData.data[i+2] = resultData.data[i+2] * (1 - m) + faceData2.data[i+2] * m;
         }
         rCtx.putImageData(resultData, 0, 0);
-
-        updateProgress(95);
-
-        // === 7. Final: clone eyes from target for natural look (subtle) ===
-        // Blend target eyes back at 30% to preserve expression
-        const eyeRegionCanvas = document.createElement("canvas");
-        eyeRegionCanvas.width = result.width;
-        eyeRegionCanvas.height = result.height;
-        const eCtx = eyeRegionCanvas.getContext("2d");
-
-        // Eye mask
-        const eyeMask = document.createElement("canvas");
-        eyeMask.width = result.width;
-        eyeMask.height = result.height;
-        const emCtx = eyeMask.getContext("2d");
-        emCtx.fillStyle = "#fff";
-        // Left eye (36-41)
-        emCtx.beginPath();
-        emCtx.moveTo(tgtPoints[36].x, tgtPoints[36].y);
-        for (let i = 37; i <= 41; i++) emCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
-        emCtx.closePath(); emCtx.fill();
-        // Right eye (42-47)
-        emCtx.beginPath();
-        emCtx.moveTo(tgtPoints[42].x, tgtPoints[42].y);
-        for (let i = 43; i <= 47; i++) emCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
-        emCtx.closePath(); emCtx.fill();
-        // Mouth (48-67)
-        emCtx.beginPath();
-        emCtx.moveTo(tgtPoints[48].x, tgtPoints[48].y);
-        for (let i = 49; i <= 59; i++) emCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
-        emCtx.closePath(); emCtx.fill();
-        emCtx.beginPath();
-        emCtx.moveTo(tgtPoints[60].x, tgtPoints[60].y);
-        for (let i = 61; i <= 67; i++) emCtx.lineTo(tgtPoints[i].x, tgtPoints[i].y);
-        emCtx.closePath(); emCtx.fill();
-
-        emCtx.filter = "blur(4px)";
-        emCtx.globalCompositeOperation = "destination-over";
-        emCtx.fillStyle = "#fff";
-        emCtx.fillRect(0, 0, result.width, result.height);
-        emCtx.filter = "none";
-        emCtx.globalCompositeOperation = "source-over";
-
-        // Re-blend original eyes/mouth back at 25%
-        const finalData = rCtx.getImageData(0, 0, result.width, result.height);
-        const origData = targetCanvas.getContext("2d").getImageData(0, 0, result.width, result.height);
-        const emData = emCtx.getImageData(0, 0, result.width, result.height);
-        for (let i = 0; i < finalData.data.length; i += 4) {
-            const em = (255 - emData.data[i+3]) / 255 * 0.25; // invert mask (holes=keep original), 25% blend
-            finalData.data[i]   = finalData.data[i]   * (1 - em) + origData.data[i]   * em;
-            finalData.data[i+1] = finalData.data[i+1] * (1 - em) + origData.data[i+1] * em;
-            finalData.data[i+2] = finalData.data[i+2] * (1 - em) + origData.data[i+2] * em;
-        }
-        rCtx.putImageData(finalData, 0, 0);
 
         updateProgress(100);
 
