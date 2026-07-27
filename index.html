@@ -91,8 +91,8 @@
                 <input type="range" id="blend" min="40" max="100" value="95" step="5">
             </div>
             <div class="control-group">
-                <div class="control-label"><label>Color Match</label>                <span class="val" id="colorVal">50%</span></div>
-                <input type="range" id="colorMatch" min="0" max="100" value="50" step="5">
+                <div class="control-label"><label>Color Match</label>                <span class="val" id="colorVal">75%</span></div>
+                <input type="range" id="colorMatch" min="0" max="100" value="75" step="5">
             </div>
         </div>
         <div class="control-row">
@@ -485,42 +485,51 @@ async function doSwap() {
 
         updateProgress(65);
 
-        // === 5. Color matching: Reinhard per-channel mean+std transfer ===
+        // === 5. Color matching: Lab L-channel transfer (match luminance, keep source skin tone) ===
         if (colorMatch > 0) {
             const faceData = wCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
             const tgtData = targetCanvas.getContext("2d").getImageData(0, 0, targetCanvas.width, targetCanvas.height);
             const maskData = mCtx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
 
-            let sR=0,sG=0,sB=0, tR=0,tG=0,tB=0, count=0;
-            for (let i = 0; i < faceData.data.length; i += 4) {
+            // Pass 1: accumulate L mean + var for source face and target in mask region
+            let sLm = 0, tLm = 0, count = 0;
+            const sLabs = new Float32Array(faceData.data.length / 4 * 3);
+            const tLabs = new Float32Array(tgtData.data.length / 4 * 3);
+            for (let i = 0, j = 0; i < faceData.data.length; i += 4, j += 3) {
                 if (maskData.data[i+3] > 100) {
-                    sR += faceData.data[i]; sG += faceData.data[i+1]; sB += faceData.data[i+2];
-                    tR += tgtData.data[i]; tG += tgtData.data[i+1]; tB += tgtData.data[i+2];
-                    count++;
+                    const sl = rgb2lab(faceData.data[i], faceData.data[i+1], faceData.data[i+2]);
+                    const tl = rgb2lab(tgtData.data[i], tgtData.data[i+1], tgtData.data[i+2]);
+                    sLabs[j] = sl[0]; sLabs[j+1] = sl[1]; sLabs[j+2] = sl[2];
+                    tLabs[j] = tl[0]; tLabs[j+1] = tl[1]; tLabs[j+2] = tl[2];
+                    sLm += sl[0]; tLm += tl[0]; count++;
                 }
             }
             if (count > 0) {
-                sR/=count; sG/=count; sB/=count; tR/=count; tG/=count; tB/=count;
-                let sR2=0,sG2=0,sB2=0, tR2=0,tG2=0,tB2=0;
-                for (let i = 0; i < faceData.data.length; i += 4) {
+                sLm /= count; tLm /= count;
+                let sLv = 0, tLv = 0;
+                for (let i = 0, j = 0; i < faceData.data.length; i += 4, j += 3) {
                     if (maskData.data[i+3] > 100) {
-                        sR2 += (faceData.data[i]-sR)**2; sG2 += (faceData.data[i+1]-sG)**2; sB2 += (faceData.data[i+2]-sB)**2;
-                        tR2 += (tgtData.data[i]-tR)**2; tG2 += (tgtData.data[i+1]-tG)**2; tB2 += (tgtData.data[i+2]-tB)**2;
+                        sLv += (sLabs[j] - sLm) ** 2;
+                        tLv += (tLabs[j] - tLm) ** 2;
                     }
                 }
-                const sRsd = Math.sqrt(sR2/count)+1, sGsd = Math.sqrt(sG2/count)+1, sBsd = Math.sqrt(sB2/count)+1;
-                const tRsd = Math.sqrt(tR2/count)+1, tGsd = Math.sqrt(tG2/count)+1, tBsd = Math.sqrt(tB2/count)+1;
-                for (let i = 0; i < faceData.data.length; i += 4) {
+                const sLsd = Math.sqrt(sLv / count) + 0.5;
+                const tLsd = Math.sqrt(tLv / count) + 0.5;
+                // Pass 2: transfer L only, keep source a/b; strength scales with mask alpha
+                for (let i = 0, j = 0; i < faceData.data.length; i += 4, j += 3) {
                     const maskAlpha = maskData.data[i+3];
                     if (maskAlpha > 0) {
-                        // Color match strength scales with mask alpha (smooth transition at edges)
+                        const sl = sLabs[j] !== 0 || sLabs[j+1] !== 0 || sLabs[j+2] !== 0
+                            ? [sLabs[j], sLabs[j+1], sLabs[j+2]]
+                            : rgb2lab(faceData.data[i], faceData.data[i+1], faceData.data[i+2]);
+                        // Matched L: shift source luminance to target luminance distribution
+                        const matchedL = (sl[0] - sLm) / sLsd * tLsd + tLm;
                         const a = (maskAlpha / 255) * colorMatch;
-                        const nr = clampByte((faceData.data[i]   - sR) / sRsd * tRsd + tR);
-                        const ng = clampByte((faceData.data[i+1] - sG) / sGsd * tGsd + tG);
-                        const nb = clampByte((faceData.data[i+2] - sB) / sBsd * tBsd + tB);
-                        faceData.data[i]   = faceData.data[i]   * (1-a) + nr * a;
-                        faceData.data[i+1] = faceData.data[i+1] * (1-a) + ng * a;
-                        faceData.data[i+2] = faceData.data[i+2] * (1-a) + nb * a;
+                        const newL = sl[0] * (1 - a) + matchedL * a;
+                        const rgb = lab2rgb(newL, sl[1], sl[2]);
+                        faceData.data[i]   = rgb[0];
+                        faceData.data[i+1] = rgb[1];
+                        faceData.data[i+2] = rgb[2];
                     }
                 }
                 wCtx.putImageData(faceData, 0, 0);
@@ -757,6 +766,29 @@ function warpTriangle(srcCanvas, dstCtx, srcTri, dstTri) {
 }
 
 function clampByte(v) { return Math.max(0, Math.min(255, v)); }
+
+// === RGB <-> Lab color space conversion (sRGB, D65) ===
+function rgb2lab(r, g, b) {
+    const f = c => { c /= 255; return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92; };
+    const R = f(r), G = f(g), B = f(b);
+    let X = R * 0.4124 + G * 0.3576 + B * 0.1805;
+    let Y = R * 0.2126 + G * 0.7152 + B * 0.0722;
+    let Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
+    X /= 0.95047; Y /= 1.0; Z /= 1.08883;
+    const g = t => t > 0.008856 ? Math.cbrt(t) : (7.787 * t + 16 / 116);
+    const fx = g(X), fy = g(Y), fz = g(Z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+function lab2rgb(L, a, b) {
+    const fy = (L + 16) / 116, fx = fy + a / 500, fz = fy - b / 200;
+    const g = t => t * t * t > 0.008856 ? t * t * t : (t - 16 / 116) / 7.787;
+    const X = 0.95047 * g(fx), Y = 1.0 * g(fy), Z = 1.08883 * g(fz);
+    let R = X * 3.2406 + Y * -1.5372 + Z * -0.4986;
+    let G = X * -0.9689 + Y * 1.8758 + Z * 0.0415;
+    let B = X * 0.0557 + Y * -0.2040 + Z * 1.0570;
+    const f = c => c > 0.0031308 ? 1.055 * Math.pow(c, 1 / 2.4) - 0.055 : 12.92 * c;
+    return [clampByte(f(R) * 255), clampByte(f(G) * 255), clampByte(f(B) * 255)];
+}
 
 function downloadResult() {
     const canvas = document.getElementById("resultCanvas");
