@@ -571,7 +571,8 @@ async function doSwap() {
         fbCtx.filter = "blur(2px)";
         fbCtx.drawImage(result, 0, 0);
         // Only apply blur at mask edges (alpha 10-180), keep center sharp
-        const fbData = fbCtx.getContext("2d").getImageData(0, 0, result.width, result.height);
+        const fbCtx2 = finalBlur.getContext("2d");
+        const fbData = fbCtx2.getImageData(0, 0, result.width, result.height);
         const sharpData = rCtx.getImageData(0, 0, result.width, result.height);
         for (let i = 0; i < sharpData.data.length; i += 4) {
             const ma = maskData2.data[i + 3];
