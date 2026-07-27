@@ -371,6 +371,10 @@ async function doSwap() {
 
         updateProgress(35);
 
+        // Face center for scaling
+        const fcx = tgtBox.x + tgtBox.width / 2;
+        const fcy = tgtBox.y + tgtBox.height / 2;
+
         // === 3. Warp source face to target via per-triangle affine transform ===
         const warpedCanvas = document.createElement("canvas");
         warpedCanvas.width = targetCanvas.width;
@@ -383,8 +387,6 @@ async function doSwap() {
             const tgtTri = [tgtPts[a], tgtPts[b], tgtPts[c]];
 
             // Apply face scale to target triangle (scale around face center)
-            const fcx = tgtBox.x + tgtBox.width / 2;
-            const fcy = tgtBox.y + tgtBox.height / 2;
             const scaledTgtTri = tgtTri.map(p => ({
                 x: fcx + (p.x - fcx) * faceScale,
                 y: fcy + (p.y - fcy) * faceScale
