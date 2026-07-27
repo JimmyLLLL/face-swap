@@ -512,72 +512,101 @@ async function doSwap() {
 
 // === Delaunay triangulation (Bowyer-Watson algorithm) ===
 function delaunay(points) {
-    const triangles = [];
     const n = points.length;
-    if (n < 3) return triangles;
+    if (n < 3) return [];
 
-    // Super triangle
+    // Super triangle that contains all points
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const p of points) {
-        if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
-        if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
     }
-    const dx = maxX - minX, dy = maxY - minY;
-    const delta = Math.max(dx, dy) * 10;
-    const midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
-    const superTri = [
-        { x: midX - delta * 2, y: midY - delta },
-        { x: midX, y: midY + delta * 2 },
-        { x: midX + delta * 2, y: midY - delta }
-    ];
+    const dx = maxX - minX;
+    const dy = maxY - minY;
+    const deltaMax = Math.max(dx, dy) * 10;
+    const midX = (minX + maxX) / 2;
+    const midY = (minY + maxY) / 2;
 
-    const verts = superTri.concat(points);
-    let triList = [[0, 1, 2]];
+    // Super triangle vertices (indices: n, n+1, n+2)
+    const p1 = { x: midX - deltaMax, y: midY - deltaMax };
+    const p2 = { x: midX + deltaMax, y: midY - deltaMax };
+    const p3 = { x: midX, y: midY + deltaMax };
 
-    for (let i = 3; i < verts.length; i++) {
+    const allPoints = points.concat([p1, p2, p3]);
+
+    // Initialize with super triangle
+    let tris = [[n, n + 1, n + 2]];
+
+    for (let i = 0; i < n; i++) {
+        const p = allPoints[i];
         const badTris = [];
         const edges = [];
-        for (let t = triList.length - 1; t >= 0; t--) {
-            const [a, b, c] = triList[t];
-            if (inCircumcircle(verts[i], verts[a], verts[b], verts[c])) {
+
+        for (let t = 0; t < tris.length; t++) {
+            const tri = tris[t];
+            const a = allPoints[tri[0]];
+            const b = allPoints[tri[1]];
+            const c = allPoints[tri[2]];
+            if (pointInCircumcircle(p, a, b, c)) {
                 badTris.push(t);
-                edges.push([a, b], [b, c], [c, a]);
+                edges.push([tri[0], tri[1]]);
+                edges.push([tri[1], tri[2]]);
+                edges.push([tri[2], tri[0]]);
             }
         }
-        // Remove bad triangles
-        for (const t of badTris) triList.splice(t, 1);
-        // Find unique edges and form new triangles
+
+        // Remove bad triangles (reverse order to preserve indices)
+        badTris.reverse();
+        for (const bt of badTris) tris.splice(bt, 1);
+
+        // Find unique edges and create new triangles with point i
         for (let e = 0; e < edges.length; e++) {
-            let unique = true;
+            let isUnique = true;
             for (let f = 0; f < edges.length; f++) {
                 if (e === f) continue;
-                if (edgesEqual(edges[e], edges[f])) { unique = false; break; }
+                if (edgesMatch(edges[e], edges[f])) {
+                    isUnique = false;
+                    break;
+                }
             }
-            if (unique) triList.push([edges[e][0], edges[e][1], i]);
+            if (isUnique) {
+                tris.push([edges[e][0], edges[e][1], i]);
+            }
         }
     }
 
-    // Remove triangles using super triangle vertices
-    for (let t = triList.length - 1; t >= 0; t--) {
-        const [a, b, c] = triList[t];
-        if (a < 3 || b < 3 || c < 3) triList.splice(t, 1);
-        else triList[t] = [a - 3, b - 3, c - 3]; // shift to actual point indices
+    // Remove triangles that share a vertex with the super triangle
+    const result = [];
+    for (const tri of tris) {
+        if (tri[0] < n && tri[1] < n && tri[2] < n) {
+            result.push(tri);
+        }
     }
-    return triList;
+    return result;
 }
 
-function edgesEqual(e1, e2) {
-    return (e1[0] === e2[0] && e1[1] === e2[1]) || (e1[0] === e2[1] && e1[1] === e2[0]);
+function edgesMatch(e1, e2) {
+    return (e1[0] === e2[0] && e1[1] === e2[1]) ||
+           (e1[0] === e2[1] && e1[1] === e2[0]);
 }
 
-function inCircumcircle(p, a, b, c) {
+function pointInCircumcircle(p, a, b, c) {
+    // Use the determinant method
     const ax = a.x - p.x, ay = a.y - p.y;
     const bx = b.x - p.x, by = b.y - p.y;
     const cx = c.x - p.x, cy = c.y - p.y;
-    const d = ax * (by * (cx*cx+cy*cy) - cy * (bx*bx+by*by))
-            - ay * (bx * (cx*cx+cy*cy) - cx * (bx*bx+by*by))
-            + (ax*ax+ay*ay) * (bx * cy - by * cx);
-    return d > 0;
+
+    const d = (ax * ax + ay * ay) * (bx * cy - cx * by)
+            - (bx * bx + by * by) * (ax * cy - cx * ay)
+            + (cx * cx + cy * cy) * (ax * by - bx * ay);
+
+    // Determine winding order
+    const area = (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
+    // If CCW (area > 0), point is inside if d > 0
+    // If CW (area < 0), point is inside if d < 0
+    return area > 0 ? d > 0 : d < 0;
 }
 
 // === Warp a triangle from source to target using affine transform ===
