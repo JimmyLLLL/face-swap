@@ -28,7 +28,7 @@
     <meta name="twitter:image" content="https://jimmywithfiona.com/face-swap/og.png">
     <title>AI Face Swap — Free Online Photo Face Swapper | No Upload</title>
     <link rel="stylesheet" href="css/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/dist/face-api.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" defer></script>
     <script type="application/ld+json">
     {"@context":"https://schema.org","@type":"WebApplication","name":"AI Face Swap","url":"https://jimmywithfiona.com/face-swap/","description":"Free online AI face swap tool. Swap faces in photos using AI face detection and blending. All processing in your browser, no upload.","applicationCategory":"DesignApplication","operatingSystem":"Any (Web Browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
     </script>
@@ -195,9 +195,9 @@ let sourceCanvas = null, targetCanvas = null;
 let detectorOptions = null;
 
 const MODEL_URLS = [
-    "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/model",
-    "https://unpkg.com/@vladmandic/face-api@1.7.14/model",
-    "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights"
+    "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights",
+    "https://unpkg.com/face-api.js@0.22.2/weights",
+    "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights"
 ];
 
 async function loadModels() {
