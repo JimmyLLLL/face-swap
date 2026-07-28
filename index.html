@@ -194,12 +194,24 @@ let sourceLandmarks = null, targetLandmarks = null;
 let sourceCanvas = null, targetCanvas = null;
 let detectorOptions = null;
 
-const MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
+const MODEL_URLS = [
+    "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/model",
+    "https://unpkg.com/@vladmandic/face-api@1.7.14/model",
+    "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights"
+];
 
 async function loadModels() {
     try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        let loaded = false;
+        for (const url of MODEL_URLS) {
+            try {
+                await faceapi.nets.tinyFaceDetector.loadFromUri(url);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(url);
+                loaded = true;
+                break;
+            } catch (e) { console.warn("Model load failed from " + url + ", trying next..."); }
+        }
+        if (!loaded) throw new Error("All model URLs failed");
         detectorOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 608, scoreThreshold: 0.1 });
         modelsLoaded = true;
         const banner = document.getElementById("statusBanner");
