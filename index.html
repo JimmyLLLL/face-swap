@@ -28,7 +28,10 @@
     <meta name="twitter:image" content="https://jimmywithfiona.com/face-swap/og.png">
     <title>AI Face Swap — Free Online Photo Face Swapper | No Upload</title>
     <link rel="stylesheet" href="css/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" defer></script>
+    <script>
+    // Dynamic load face-api to avoid variable collision with AdSense
+    (function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';s.onload=function(){window.faceApiReady=true;};document.head.appendChild(s);})();
+    </script>
     <script type="application/ld+json">
     {"@context":"https://schema.org","@type":"WebApplication","name":"AI Face Swap","url":"https://jimmywithfiona.com/face-swap/","description":"Free online AI face swap tool. Swap faces in photos using AI face detection and blending. All processing in your browser, no upload.","applicationCategory":"DesignApplication","operatingSystem":"Any (Web Browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
     </script>
@@ -227,7 +230,7 @@ async function loadModels() {
 
 // Start loading models when face-api is ready
 function waitForFaceApi() {
-    if (typeof faceapi !== "undefined") {
+    if (typeof faceapi !== "undefined" && window.faceApiReady) {
         loadModels();
     } else {
         setTimeout(waitForFaceApi, 100);
