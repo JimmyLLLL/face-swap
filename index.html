@@ -28,10 +28,7 @@
     <meta name="twitter:image" content="https://jimmywithfiona.com/face-swap/og.png">
     <title>AI Face Swap — Free Online Photo Face Swapper | No Upload</title>
     <link rel="stylesheet" href="css/style.css">
-    <script>
-    // Dynamic load face-api (vladmandic fork - fixes original face-api.js bugs)
-    (function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/dist/face-api.js';s.onload=function(){window.faceApiReady=true;};document.head.appendChild(s);})();
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/dist/face-api.js" defer></script>
     <script type="application/ld+json">
     {"@context":"https://schema.org","@type":"WebApplication","name":"AI Face Swap","url":"https://jimmywithfiona.com/face-swap/","description":"Free online AI face swap tool. Swap faces in photos using AI face detection and blending. All processing in your browser, no upload.","applicationCategory":"DesignApplication","operatingSystem":"Any (Web Browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
     </script>
@@ -230,7 +227,7 @@ async function loadModels() {
 
 // Start loading models when face-api is ready
 function waitForFaceApi() {
-    if (typeof faceapi !== "undefined" && window.faceApiReady) {
+    if (typeof faceapi !== "undefined") {
         loadModels();
     } else {
         setTimeout(waitForFaceApi, 100);
@@ -796,20 +793,20 @@ function clampByte(v) { return Math.max(0, Math.min(255, v)); }
 
 // === RGB <-> Lab color space conversion (sRGB, D65) ===
 function rgb2lab(r, g, b) {
-    const f = c => { c /= 255; return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92; };
-    const R = f(r), G = f(g), B = f(b);
+    const fn = c => { c /= 255; return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92; };
+    const R = fn(r), G = fn(g), B = fn(b);
     let X = R * 0.4124 + G * 0.3576 + B * 0.1805;
     let Y = R * 0.2126 + G * 0.7152 + B * 0.0722;
     let Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
     X /= 0.95047; Y /= 1.0; Z /= 1.08883;
-    const g = t => t > 0.008856 ? Math.cbrt(t) : (7.787 * t + 16 / 116);
-    const fx = g(X), fy = g(Y), fz = g(Z);
+    const g2 = t => t > 0.008856 ? Math.cbrt(t) : (7.787 * t + 16 / 116);
+    const fx = g2(X), fy = g2(Y), fz = g2(Z);
     return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
 }
 function lab2rgb(L, a, b) {
     const fy = (L + 16) / 116, fx = fy + a / 500, fz = fy - b / 200;
-    const g = t => t * t * t > 0.008856 ? t * t * t : (t - 16 / 116) / 7.787;
-    const X = 0.95047 * g(fx), Y = 1.0 * g(fy), Z = 1.08883 * g(fz);
+    const g3 = t => t * t * t > 0.008856 ? t * t * t : (t - 16 / 116) / 7.787;
+    const X = 0.95047 * g3(fx), Y = 1.0 * g3(fy), Z = 1.08883 * g3(fz);
     let R = X * 3.2406 + Y * -1.5372 + Z * -0.4986;
     let G = X * -0.9689 + Y * 1.8758 + Z * 0.0415;
     let B = X * 0.0557 + Y * -0.2040 + Z * 1.0570;
