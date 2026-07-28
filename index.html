@@ -29,8 +29,8 @@
     <title>AI Face Swap — Free Online Photo Face Swapper | No Upload</title>
     <link rel="stylesheet" href="css/style.css">
     <script>
-    // Dynamic load face-api to avoid variable collision with AdSense
-    (function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';s.onload=function(){window.faceApiReady=true;};document.head.appendChild(s);})();
+    // Dynamic load face-api (vladmandic fork - fixes original face-api.js bugs)
+    (function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/dist/face-api.js';s.onload=function(){window.faceApiReady=true;};document.head.appendChild(s);})();
     </script>
     <script type="application/ld+json">
     {"@context":"https://schema.org","@type":"WebApplication","name":"AI Face Swap","url":"https://jimmywithfiona.com/face-swap/","description":"Free online AI face swap tool. Swap faces in photos using AI face detection and blending. All processing in your browser, no upload.","applicationCategory":"DesignApplication","operatingSystem":"Any (Web Browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
@@ -198,9 +198,9 @@ let sourceCanvas = null, targetCanvas = null;
 let detectorOptions = null;
 
 const MODEL_URLS = [
-    "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights",
-    "https://unpkg.com/face-api.js@0.22.2/weights",
-    "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights"
+    "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/model",
+    "https://unpkg.com/@vladmandic/face-api@1.7.14/model",
+    "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights"
 ];
 
 async function loadModels() {
