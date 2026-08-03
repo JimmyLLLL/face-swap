@@ -47,6 +47,17 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"JimmyWithFiona","url":"https://jimmywithfiona.com/","logo":"https://jimmywithfiona.com/og.png","description":"Free online tools, games, and daily content","sameAs":["https://github.com/JimmyLLLL"]}</script>
 
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://jimmywithfiona.com/"},{"@type":"ListItem","position":2,"name":"AI Tools","item":"https://jimmywithfiona.com/ai-tools/"},{"@type":"ListItem","position":3,"name":"Face Swap","item":"https://jimmywithfiona.com/face-swap/"}]}</script>
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AI Face Swap","url":"https://jimmywithfiona.com/face-swap/","applicationCategory":"UtilityApplication","operatingSystem":"Any (Web Browser)","description":"Swap faces in photos using AI, runs in browser","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"JimmyWithFiona","url":"https://jimmywithfiona.com/"}}</script>
+<!-- GA4 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+<script>
+window.dataLayer=window.dataLayer||[];
+function gtag(){dataLayer.push(arguments);}
+gtag('js',new Date());
+gtag('config','G-XXXXXXXXXX');
+</script>
+<!-- /GA4 -->
 </head>
 <body>
 <nav class="navbar">
@@ -113,6 +124,7 @@
         <div class="btn-row">
             <button class="btn" onclick="doSwap()" id="swapBtn" disabled>🎭 Swap Faces</button>
             <button class="btn btn-success" onclick="downloadResult()" id="dlBtn" style="display:none;">📥 Download Result</button>
+            <button class="btn btn-secondary" onclick="shareResult()" id="shareBtn" style="display:none;background:#1da1f2;color:#fff;border:none;">🐦 Share</button>
             <button class="btn btn-secondary" onclick="resetAll()">🗑️ Reset</button>
         </div>
     </div>
@@ -183,6 +195,8 @@
 <script>
      (adsbygoogle = window.adsbygoogle || []).push({});
 </script>
+
+<noscript><p>AI Face Swap — swap faces in photos using AI. Free online, no upload, runs in browser.</p></noscript>
 </main>
 <footer>
     <p><a href="about.html">About</a> · <a href="privacy.html">Privacy</a> · <a href="contact.html">Contact</a> · <a href="/">Home</a></p>
@@ -651,6 +665,7 @@ async function doSwap() {
         resultCanvas.getContext("2d").drawImage(result, 0, 0);
         document.getElementById("resultWrap").classList.add("show");
         document.getElementById("dlBtn").style.display = "inline-flex";
+        document.getElementById("shareBtn").style.display = "inline-flex";
         document.getElementById("resultWrap").scrollIntoView({ behavior: "smooth", block: "start" });
 
     } catch (e) {
@@ -826,6 +841,21 @@ function downloadResult() {
     link.click();
 }
 
+async function shareResult() {
+    const canvas = document.getElementById("resultCanvas");
+    const url = "https://jimmywithfiona.com/face-swap/";
+    const text = "Check out this AI face swap! 🎭";
+    if (navigator.share) {
+        try {
+            const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
+            const file = new File([blob], "face-swap.png", { type: "image/png" });
+            await navigator.share({ title: "AI Face Swap", text: text, files: [file] });
+        } catch (e) {}
+    } else {
+        window.open("https://twitter.com/intent/tweet?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(url), "_blank");
+    }
+}
+
 function resetAll() {
     sourceImg = null; targetImg = null;
     sourceLandmarks = null; targetLandmarks = null;
@@ -833,6 +863,7 @@ function resetAll() {
     document.getElementById("controls").classList.remove("show");
     document.getElementById("resultWrap").classList.remove("show");
     document.getElementById("dlBtn").style.display = "none";
+    document.getElementById("shareBtn").style.display = "none";
     document.getElementById("swapBtn").disabled = true;
     // Reset upload areas
     ["sourceArea","targetArea"].forEach(id => {
@@ -848,5 +879,54 @@ function resetAll() {
     setupUpload("targetArea", "targetInput", false);
 }
 </script>
+<!-- BOOKMARK-PROMPT -->
+<script>
+(function(){
+var shown=false;
+function showBookmarkHint(){
+if(shown)return;shown=true;
+var d=document.createElement('div');
+d.id='bm-hint';
+d.style.cssText='position:fixed;bottom:80px;right:20px;background:#161922;border:1px solid #2d3340;border-radius:12px;padding:1rem 1.2rem;max-width:260px;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.4);font-size:.82rem;color:#e8eaf0;font-family:sans-serif;transition:opacity .3s,transform .3s;opacity:0;transform:translateY(10px)';
+d.innerHTML='<div style="font-weight:700;margin-bottom:.3rem;">⭐ Bookmark this tool</div><div style="color:#7a8190;font-size:.75rem;margin-bottom:.6rem;">Quick access for next time — press Ctrl+D</div><button id="bm-close" style="background:#4f8cff;color:#fff;border:none;border-radius:6px;padding:.3rem .8rem;font-size:.72rem;cursor:pointer">Got it</button>';
+document.body.appendChild(d);
+setTimeout(function(){{d.style.opacity='1';d.style.transform='translateY(0)';}},100);
+document.getElementById('bm-close').onclick=function(){{d.style.opacity='0';d.style.transform='translateY(10px)';setTimeout(function(){{d.remove()}},300)}};
+}
+var interactions=0;
+function checkEngagement(){
+interactions++;
+if(interactions>=3&&!localStorage.getItem('bm_dismissed')){
+showBookmarkHint();
+localStorage.setItem('bm_dismissed','1');
+}
+}
+['click','keydown','touchstart'].forEach(function(e){document.addEventListener(e,checkEngagement,{once:false,passive:true})});
+})();
+</script>
+<!-- /BOOKMARK-PROMPT -->
+<!-- I18N-FULL -->
+<script>
+(function(){
+var lang=(navigator.language||navigator.userLanguage||'en').toLowerCase();
+if(!lang.startsWith('zh'))return;
+var ZH={"About":"关于","Privacy":"隐私","Contact":"联系","Home":"首页","Generate":"生成","Calculate":"计算","Convert":"转换","Download":"下载","Copy":"复制","Clear":"清空","Reset":"重置","Upload":"上传","Start":"开始","Stop":"停止","Search":"搜索","Views":"浏览","Visitors":"访客","More":"更多","Free online tools":"免费在线工具","Result":"结果","Size":"尺寸","Color":"颜色","Width":"宽度","Height":"高度","Format":"格式","Quality":"质量","Options":"选项","Settings":"设置","Loading...":"加载中…","Processing...":"处理中…","Click to upload":"点击上传","or drag & drop":"或拖拽到此处","No results found":"未找到结果","Try again":"重试","How to Play":"玩法说明","How to Use":"使用方法","FAQ":"常见问题","Free":"免费","Private":"隐私","No signup":"无需注册","No download":"无需下载","No upload":"不上传","Works on mobile":"手机可用","100% Free":"完全免费","Related Tools":"相关工具","AI Face Swap":"AI 换脸","Source Face":"源人脸","Upload source face":"上传源人脸","The face you want to use":"你想使用的人脸","Upload target image":"上传目标图片","Where the face will be placed":"人脸将放到此处","Blend Amount":"融合度","Color Match":"颜色匹配","Feather Edge":"边缘羽化","Face Scale":"人脸缩放","Swap Faces":"换脸","Download Result":"下载结果","Ethical Use":"道德使用","This tool is for entertainment and creative purposes only":"本工具仅供娱乐和创意用途","Do not use it to create misleading content":"请勿用于制作误导性内容","Free AI face swap online":"免费 AI 在线换脸","Swap faces in photos using AI.":"AI 照片换脸。","Loading AI models...":"加载 AI 模型中…","Source Image":"原图","Target Image":"目标图","swap faces in photos using AI":"AI 照片换脸","No upload to server, complete privacy.":"不上传服务器，完全隐私。","Upload source and target images":"上传原图和目标图","face detection and blending runs in your browser":"人脸检测和融合在浏览器中运行","Swap faces in photos using AI — free, private, runs in your browser":"AI 照片换脸——免费、隐私、浏览器端运行","Face detection model is downloading (first load ~6MB). Please wait.":"人脸检测模型下载中（首次约 6MB），请稍候。","No upload to server, complete privacy":"不上传服务器，完全隐私","AI models loaded successfully!":"AI 模型加载成功！","Failed to load AI models":"AI 模型加载失败","Please check your connection and refresh":"请检查网络并刷新","Detecting faces...":"检测人脸中…","No face detected in source image":"源图片未检测到人脸","No face detected in target image":"目标图片未检测到人脸","Swapping faces...":"换脸中…","Face swap complete!":"换脸完成！"};
+function walk(node){
+if(node.nodeType===3){
+var t=node.textContent;
+for(var en in ZH){
+if(t.indexOf(en)>=0){
+node.textContent=t.replace(en,ZH[en]);
+}
+}
+}else if(node.nodeType===1&&node.tagName!=='SCRIPT'&&node.tagName!=='STYLE'&&node.tagName!=='NOSCRIPT'){
+for(var i=0;i<node.childNodes.length;i++){walk(node.childNodes[i])}
+}
+}
+walk(document.body);
+document.documentElement.lang='zh-CN';
+})();
+</script>
+<!-- /I18N-FULL -->
 </body>
 </html>
