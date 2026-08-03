@@ -39,5 +39,35 @@
 </main>
 <footer><p>© 2026 AI Face Swap · <a href="/">Home</a></p></footer>
 <script src="js/counter.js" defer></script>
+<!-- I18N-FULL -->
+<script>
+(function(){
+var lang=(navigator.language||navigator.userLanguage||'en').toLowerCase();
+if(!lang.startsWith('zh'))return;
+var ZH={"🎭 AI Face Swap":"🎭 AI 换脸","Swap":"换脸","About":"关于","Privacy":"隐私","Contact":"联系","🏠 Home":"🏠 首页","Privacy Policy":"隐私政策","Last updated: July 27, 2026":"最后更新：2026 年 7 月 27 日","Your photos are 100% private.":"你的照片 100% 私密。","All face detection and blending happens locally in your browser using JavaScript and Canvas. No image data is ever uploaded to any server.":"所有人脸检测和融合都在你的浏览器中使用 JavaScript 和 Canvas 本地完成。任何图像数据都不会上传到任何服务器。","1. Image Data":"1. 图像数据","When you upload photos, they are processed entirely within your browser session. The image data never leaves your device. No photos are stored, logged, or transmitted.":"当你上传照片时，它们完全在你的浏览器会话中处理。图像数据绝不会离开你的设备。照片不会被存储、记录或传输。","2. AI Model Loading":"2. AI 模型加载","The face detection model (~6MB) is loaded from a CDN (jsDelivr) on first visit and cached by your browser. This is a one-time download — subsequent visits use the cached model.":"人脸检测模型（约 6MB）在首次访问时从 CDN（jsDelivr）加载，并由你的浏览器缓存。这是一次性下载 — 后续访问使用缓存的模型。","3. Third-Party Services":"3. 第三方服务","GitHub Pages — hosting (static files only)":"GitHub Pages — 托管（仅静态文件）","jsDelivr CDN — AI model distribution":"jsDelivr CDN — AI 模型分发","Google AdSense — may show ads":"Google AdSense — 可能显示广告","Counter API — anonymous view counting":"Counter API — 匿名浏览计数","4. Contact":"4. 联系","Questions? Visit our":"有疑问？访问我们的","contact page":"联系页面","👁️ Views":"👁️ 浏览量","👤 Visitors":"👤 访客","© 2026 AI Face Swap ·":"© 2026 AI 换脸 ·","Home":"首页"};
+function walk(node){
+if(node.nodeType===3){
+var t=node.textContent,k=t.trim();
+if(k&&ZH[k]){node.textContent=t.replace(k,ZH[k])}
+}else if(node.nodeType===1&&node.tagName!=='SCRIPT'&&node.tagName!=='STYLE'&&node.tagName!=='NOSCRIPT'){
+if(node.childNodes.length>1){
+var full=node.textContent.trim();
+if(ZH[full]){node.textContent=ZH[full];return}
+}
+for(var i=0;i<node.childNodes.length;i++){walk(node.childNodes[i])}
+}
+}
+walk(document.body);
+document.documentElement.lang='zh-CN';
+var mo=new MutationObserver(function(muts){
+muts.forEach(function(m){
+if(m.type==='childList'){m.addedNodes.forEach(function(n){walk(n)})}
+else if(m.type==='characterData'){walk(m.target)}
+});
+});
+mo.observe(document.body,{childList:true,subtree:true,characterData:true});
+})();
+</script>
+<!-- /I18N-FULL -->
 </body>
 </html>

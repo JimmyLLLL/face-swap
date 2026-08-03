@@ -40,5 +40,35 @@
 </main>
 <footer><p>© 2026 AI Face Swap · <a href="/">Home</a></p></footer>
 <script src="js/counter.js" defer></script>
+<!-- I18N-FULL -->
+<script>
+(function(){
+var lang=(navigator.language||navigator.userLanguage||'en').toLowerCase();
+if(!lang.startsWith('zh'))return;
+var ZH={"🎭 AI Face Swap":"🎭 AI 换脸","Swap":"换脸","About":"关于","Privacy":"隐私","Contact":"联系","🏠 Home":"🏠 首页","About AI Face Swap":"关于 AI 换脸","Our free AI face swap tool lets you swap faces in photos right in your browser. Using neural network-based face detection (TinyFaceDetector + 68-point landmark detection), the tool identifies facial features in both source and target images, then warps and blends the source face onto the target with adjustable color matching and feathered edges.":"我们的免费 AI 换脸工具让你可以直接在浏览器中替换照片中的人脸。基于神经网络的人脸检测（TinyFaceDetector + 68 点特征点检测），工具会识别源图像和目标图像中的面部特征，然后将源人脸变形并融合到目标图像上，支持可调的色彩匹配和羽化边缘。","How It Works":"工作原理","AI detects 68 facial landmarks in both images":"AI 在两张图像中检测 68 个面部特征点","Source face is scaled and positioned to match target":"源人脸被缩放和定位以匹配目标","Skin tone and lighting are color-matched":"肤色和光线进行色彩匹配","Feathered mask creates seamless blending":"羽化遮罩实现无缝融合","Result is composited onto the target image":"结果合成到目标图像上","All processing happens locally in your browser. Photos are never uploaded to any server. The AI model is loaded once from a CDN and cached by your browser for subsequent visits.":"所有处理都在你的浏览器中本地完成。照片绝不会上传到任何服务器。AI 模型从 CDN 加载一次，由你的浏览器缓存以供后续访问使用。","Swap Faces →":"开始换脸 →","👁️ Views":"👁️ 浏览量","👤 Visitors":"👤 访客","© 2026 AI Face Swap ·":"© 2026 AI 换脸 ·","Home":"首页"};
+function walk(node){
+if(node.nodeType===3){
+var t=node.textContent,k=t.trim();
+if(k&&ZH[k]){node.textContent=t.replace(k,ZH[k])}
+}else if(node.nodeType===1&&node.tagName!=='SCRIPT'&&node.tagName!=='STYLE'&&node.tagName!=='NOSCRIPT'){
+if(node.childNodes.length>1){
+var full=node.textContent.trim();
+if(ZH[full]){node.textContent=ZH[full];return}
+}
+for(var i=0;i<node.childNodes.length;i++){walk(node.childNodes[i])}
+}
+}
+walk(document.body);
+document.documentElement.lang='zh-CN';
+var mo=new MutationObserver(function(muts){
+muts.forEach(function(m){
+if(m.type==='childList'){m.addedNodes.forEach(function(n){walk(n)})}
+else if(m.type==='characterData'){walk(m.target)}
+});
+});
+mo.observe(document.body,{childList:true,subtree:true,characterData:true});
+})();
+</script>
+<!-- /I18N-FULL -->
 </body>
 </html>
